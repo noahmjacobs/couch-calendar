@@ -43,7 +43,14 @@ const mondayOf = (d) => {
 
 export default function App() {
   const [view, setView] = useState('calendar') // 'calendar' | 'roommates'
-  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
+  const [calMode, setCalMode] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+  )
+  const [anchor, setAnchor] = useState(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  })
   const [allReservations, setAllReservations] = useState({})
   const [loading, setLoading] = useState(true)
 
@@ -57,7 +64,8 @@ export default function App() {
   const [guestName, setGuestName] = useState('')
 
   const todayKey = dateKey(new Date())
-  const days = Array.from({ length: 7 }, (_, i) => {
+  const weekStart = mondayOf(anchor)
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
     return d
@@ -89,15 +97,24 @@ export default function App() {
     setGuestName('')
   }
 
-  const changeWeek = (weeks) => {
-    const newStart = new Date(weekStart)
-    newStart.setDate(newStart.getDate() + weeks * 7)
-    setWeekStart(newStart)
+  const navigate = (dir) => {
+    const d = new Date(anchor)
+    if (calMode === 'day') d.setDate(d.getDate() + dir)
+    else if (calMode === 'week') d.setDate(d.getDate() + dir * 7)
+    else d.setMonth(d.getMonth() + dir)
+    setAnchor(d)
     resetForm()
   }
 
-  const goToThisWeek = () => {
-    setWeekStart(mondayOf(new Date()))
+  const goToToday = () => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    setAnchor(d)
+    resetForm()
+  }
+
+  const switchMode = (mode) => {
+    setCalMode(mode)
     resetForm()
   }
 
@@ -107,7 +124,7 @@ export default function App() {
     setEndHour(hour + 1) // default: 1 hour
   }
 
-  // latest allowed end for the currently selected start (can't run into the next booking)
+  // latest allowed end for the selected start (can't run into the next booking)
   const maxEndFor = (day, startHour) => {
     const dayRes = allReservations[dateKey(day)] || {}
     let limit = DAY_END
@@ -194,6 +211,394 @@ export default function App() {
     return { name: rm, events, dates, guestCounts }
   })
 
+  const navLabel = () => {
+    if (calMode === 'day') {
+      const label = anchor.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      })
+      return dateKey(anchor) === todayKey ? `${label} (Today)` : label
+    }
+    if (calMode === 'week') {
+      return `${weekDays[0].toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric'
+      })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
+    }
+    return anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
+
+  // ---- Reservation form panel (shared by day + week) ----
+  const renderForm = () => (
+    <div className="form-panel">
+      <h3>Make a Reservation</h3>
+
+      {!selectedDay ? (
+        <p className="hint">
+          {calMode === 'day'
+            ? 'Tap a free time to reserve it'
+            : 'Click a day or free time slot to reserve'}
+        </p>
+      ) : selectedHour === null ? (
+        <div>
+          <div className="selected-info">
+            {selectedDay.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric'
+            })}
+          </div>
+          <p className="hint">Pick a start time:</p>
+          <div className="time-picker">
+            {HOURS.map((hour) => {
+              const dStr = dateKey(selectedDay)
+              const isTaken = buildDayMap(allReservations[dStr])[hour]
+              return (
+                <button
+                  key={hour}
+                  className={`time-btn ${isTaken ? 'reserved' : ''}`}
+                  onClick={() => !isTaken && pickStart(selectedDay, hour)}
+                  disabled={!!isTaken}
+                >
+                  {formatHour(hour)}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleReserve}>
+          <div className="selected-info">
+            {selectedDay.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric'
+            })}
+            <br />
+            {formatHour(selectedHour)} – {formatHour(endHour)}
+          </div>
+
+          <label>Until when?</label>
+          <div className="time-picker end-picker">
+            {Array.from(
+              { length: maxEndFor(selectedDay, selectedHour) - selectedHour },
+              (_, i) => selectedHour + 1 + i
+            ).map((h) => (
+              <button
+                type="button"
+                key={h}
+                className={`time-btn ${endHour === h ? 'active' : ''}`}
+                onClick={() => setEndHour(h)}
+              >
+                {formatHour(h)}
+              </button>
+            ))}
+          </div>
+
+          <label>Who are you?</label>
+          <div className="who-picker">
+            {ROOMMATES.map((rm) => (
+              <button
+                type="button"
+                key={rm}
+                className={`who-btn ${who === rm ? 'active' : ''}`}
+                onClick={() => setWho(rm)}
+              >
+                {rm}
+              </button>
+            ))}
+          </div>
+
+          <label>What is it?</label>
+          <div className="type-picker">
+            <button
+              type="button"
+              className={`type-btn ${type === 'event' ? 'active' : ''}`}
+              onClick={() => setType('event')}
+            >
+              📅 Event
+            </button>
+            <button
+              type="button"
+              className={`type-btn ${type === 'date' ? 'active date-active' : ''}`}
+              onClick={() => setType('date')}
+            >
+              💕 Date
+            </button>
+          </div>
+
+          {type === 'date' && (
+            <input
+              type="text"
+              placeholder="Who's the date with? (required)"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+            />
+          )}
+
+          <textarea
+            placeholder={
+              type === 'date'
+                ? 'Any other details? (optional)'
+                : "What's the event? Who's coming?"
+            }
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+          />
+
+          <button type="submit" className="submit-btn">
+            Reserve
+          </button>
+          <button type="button" className="cancel-btn" onClick={resetForm}>
+            Cancel
+          </button>
+        </form>
+      )}
+    </div>
+  )
+
+  // ---- Day view ----
+  const renderDayView = () => {
+    const dStr = dateKey(anchor)
+    const hourMap = buildDayMap(allReservations[dStr])
+
+    return (
+      <div className="week-view">
+        <div className="day-view">
+          {HOURS.map((hour) => {
+            const res = hourMap[hour]
+            if (!res) {
+              return (
+                <div
+                  key={hour}
+                  className={`day-row free ${selectedHour === hour && selectedDay && dateKey(selectedDay) === dStr ? 'selected' : ''}`}
+                  onClick={() => pickStart(anchor, hour)}
+                >
+                  <div className="day-row-time">{formatHour(hour)}</div>
+                  <div className="day-row-body free-body">+</div>
+                </div>
+              )
+            }
+            const isStart = res.hour === hour
+            const isDate = res.type === 'date'
+            if (!isStart) {
+              return (
+                <div key={hour} className={`day-row cont ${isDate ? 'is-date' : ''}`}>
+                  <div className="day-row-time">{formatHour(hour)}</div>
+                  <div className="day-row-body cont-body"></div>
+                </div>
+              )
+            }
+            return (
+              <div key={hour} className={`day-row booked ${isDate ? 'is-date' : ''}`}>
+                <div className="day-row-time">{formatHour(hour)}</div>
+                <div className="day-row-body res-card">
+                  <div className="res-card-top">
+                    <span className="res-name">
+                      {isDate ? '💕 ' : '📅 '}
+                      {res.name}
+                    </span>
+                    <span className="res-time">
+                      {formatHour(res.hour)} – {formatHour(resEnd(res))}
+                    </span>
+                  </div>
+                  <div className="res-card-details">
+                    {isDate ? `Date with ${res.guestName}` : res.details}
+                    {isDate && res.details ? ` — ${res.details}` : ''}
+                  </div>
+                  <button
+                    className="cell-delete visible"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(dStr, res.hour)
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {renderForm()}
+      </div>
+    )
+  }
+
+  // ---- Week view ----
+  const renderWeekView = () => (
+    <div className="week-view">
+      <div className="week-grid">
+        <div className="grid-inner">
+          <div className="time-column">
+            <div className="day-header"></div>
+            {HOURS.map((hour) => (
+              <div key={hour} className="time-slot">
+                {formatHour(hour)}
+              </div>
+            ))}
+          </div>
+
+          {weekDays.map((day) => {
+            const dStr = dateKey(day)
+            const isToday = dStr === todayKey
+            const dayRes = allReservations[dStr] || {}
+            const hasRes = Object.keys(dayRes).length > 0
+            const hourMap = buildDayMap(dayRes)
+
+            return (
+              <div key={dStr} className={`day-column ${isToday ? 'today' : ''}`}>
+                <div
+                  className={`day-header clickable-header ${isToday ? 'today-header' : ''}`}
+                  onClick={() => {
+                    setAnchor(new Date(day))
+                    switchMode('day')
+                  }}
+                  title="Open day view"
+                >
+                  <div className="day-name">
+                    {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </div>
+                  <div className="day-date">
+                    {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+
+                <div className="day-content">
+                  {!hasRes ? (
+                    <div
+                      className="free-all clickable"
+                      onClick={() => {
+                        setSelectedDay(day)
+                        setSelectedHour(null)
+                        setEndHour(null)
+                      }}
+                    >
+                      Free
+                    </div>
+                  ) : (
+                    HOURS.map((hour) => {
+                      const res = hourMap[hour]
+                      if (!res) {
+                        return (
+                          <div
+                            key={hour}
+                            className="time-cell available"
+                            onClick={() => pickStart(day, hour)}
+                          >
+                            <div className="cell-free"></div>
+                          </div>
+                        )
+                      }
+                      const isStart = res.hour === hour
+                      const isDate = res.type === 'date'
+                      return (
+                        <div
+                          key={hour}
+                          className={`time-cell reserved ${isDate ? 'is-date' : ''}`}
+                        >
+                          <div className={`cell-res ${isStart ? '' : 'cell-cont'}`}>
+                            {isStart && (
+                              <>
+                                <div className="res-name">
+                                  {isDate ? '💕 ' : '📅 '}
+                                  {res.name}
+                                </div>
+                                <div className="res-time">
+                                  {formatHour(res.hour)} – {formatHour(resEnd(res))}
+                                </div>
+                                <div className="res-details">
+                                  {isDate ? `Date with ${res.guestName}` : res.details}
+                                </div>
+                                <button
+                                  className="cell-delete"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(dStr, res.hour)
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {renderForm()}
+    </div>
+  )
+
+  // ---- Month view ----
+  const renderMonthView = () => {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+    const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
+    const gridStart = mondayOf(first)
+    const cells = []
+    const cursor = new Date(gridStart)
+    while (cursor <= last || cursor.getDay() !== 1) {
+      cells.push(new Date(cursor))
+      cursor.setDate(cursor.getDate() + 1)
+      if (cells.length > 42) break
+    }
+
+    return (
+      <div className="month-view">
+        <div className="month-weekdays">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+            <div key={d} className="month-weekday">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="month-grid">
+          {cells.map((day) => {
+            const dStr = dateKey(day)
+            const inMonth = day.getMonth() === anchor.getMonth()
+            const isToday = dStr === todayKey
+            const dayRes = Object.values(allReservations[dStr] || {}).sort(
+              (a, b) => a.hour - b.hour
+            )
+
+            return (
+              <div
+                key={dStr}
+                className={`month-cell ${inMonth ? '' : 'out-month'} ${isToday ? 'today' : ''}`}
+                onClick={() => {
+                  setAnchor(new Date(day))
+                  switchMode('day')
+                }}
+              >
+                <div className="month-daynum">{day.getDate()}</div>
+                <div className="month-cell-items">
+                  {dayRes.slice(0, 3).map((res, i) => (
+                    <div
+                      key={i}
+                      className={`month-item ${res.type === 'date' ? 'is-date' : ''}`}
+                    >
+                      {res.name}
+                    </div>
+                  ))}
+                  {dayRes.length > 3 && (
+                    <div className="month-more">+{dayRes.length - 3} more</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container">
       <header className="app-header">
@@ -217,248 +622,35 @@ export default function App() {
       {view === 'calendar' ? (
         <>
           <div className="week-nav">
-            <button onClick={() => changeWeek(-1)}>← Previous Week</button>
-            <h2>
-              {days[0].toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} –{' '}
-              {days[6].toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-            </h2>
-            <button onClick={() => changeWeek(1)}>Next Week →</button>
-            <button className="today-btn" onClick={goToThisWeek}>
-              Today
-            </button>
+            <div className="mode-toggle">
+              {['day', 'week', 'month'].map((m) => (
+                <button
+                  key={m}
+                  className={calMode === m ? 'active' : ''}
+                  onClick={() => switchMode(m)}
+                >
+                  {m[0].toUpperCase() + m.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="nav-controls">
+              <button onClick={() => navigate(-1)}>←</button>
+              <h2>{navLabel()}</h2>
+              <button onClick={() => navigate(1)}>→</button>
+              <button className="today-btn" onClick={goToToday}>
+                Today
+              </button>
+            </div>
           </div>
 
           {loading ? (
             <p className="loading-msg">Loading calendar...</p>
+          ) : calMode === 'day' ? (
+            renderDayView()
+          ) : calMode === 'week' ? (
+            renderWeekView()
           ) : (
-            <div className="week-view">
-              <div className="week-grid">
-                <div className="grid-inner">
-                  <div className="time-column">
-                    <div className="day-header"></div>
-                    {HOURS.map((hour) => (
-                      <div key={hour} className="time-slot">
-                        {formatHour(hour)}
-                      </div>
-                    ))}
-                  </div>
-
-                  {days.map((day) => {
-                    const dStr = dateKey(day)
-                    const isToday = dStr === todayKey
-                    const dayRes = allReservations[dStr] || {}
-                    const hasRes = Object.keys(dayRes).length > 0
-                    const hourMap = buildDayMap(dayRes)
-
-                    return (
-                      <div key={dStr} className={`day-column ${isToday ? 'today' : ''}`}>
-                        <div className={`day-header ${isToday ? 'today-header' : ''}`}>
-                          <div className="day-name">
-                            {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                          </div>
-                          <div className="day-date">
-                            {day.toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="day-content">
-                          {!hasRes ? (
-                            <div
-                              className="free-all clickable"
-                              onClick={() => {
-                                setSelectedDay(day)
-                                setSelectedHour(null)
-                                setEndHour(null)
-                              }}
-                            >
-                              Free
-                            </div>
-                          ) : (
-                            HOURS.map((hour) => {
-                              const res = hourMap[hour]
-                              if (!res) {
-                                return (
-                                  <div
-                                    key={hour}
-                                    className="time-cell available"
-                                    onClick={() => pickStart(day, hour)}
-                                  >
-                                    <div className="cell-free"></div>
-                                  </div>
-                                )
-                              }
-                              const isStart = res.hour === hour
-                              const isDate = res.type === 'date'
-                              return (
-                                <div
-                                  key={hour}
-                                  className={`time-cell reserved ${isDate ? 'is-date' : ''}`}
-                                >
-                                  <div
-                                    className={`cell-res ${isStart ? '' : 'cell-cont'}`}
-                                  >
-                                    {isStart && (
-                                      <>
-                                        <div className="res-name">
-                                          {isDate ? '💕 ' : '📅 '}
-                                          {res.name}
-                                        </div>
-                                        <div className="res-time">
-                                          {formatHour(res.hour)} – {formatHour(resEnd(res))}
-                                        </div>
-                                        <div className="res-details">
-                                          {isDate
-                                            ? `Date with ${res.guestName}`
-                                            : res.details}
-                                        </div>
-                                        <button
-                                          className="cell-delete"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDelete(dStr, res.hour)
-                                          }}
-                                        >
-                                          ✕
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="form-panel">
-                <h3>Make a Reservation</h3>
-
-                {!selectedDay ? (
-                  <p className="hint">Click a day or free time slot to reserve</p>
-                ) : selectedHour === null ? (
-                  <div>
-                    <div className="selected-info">
-                      {selectedDay.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </div>
-                    <p className="hint">Pick a start time:</p>
-                    <div className="time-picker">
-                      {HOURS.map((hour) => {
-                        const dStr = dateKey(selectedDay)
-                        const isTaken = buildDayMap(allReservations[dStr])[hour]
-                        return (
-                          <button
-                            key={hour}
-                            className={`time-btn ${isTaken ? 'reserved' : ''}`}
-                            onClick={() => !isTaken && pickStart(selectedDay, hour)}
-                            disabled={!!isTaken}
-                          >
-                            {formatHour(hour)}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <form onSubmit={handleReserve}>
-                    <div className="selected-info">
-                      {selectedDay.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                      <br />
-                      {formatHour(selectedHour)} – {formatHour(endHour)}
-                    </div>
-
-                    <label>Until when?</label>
-                    <div className="time-picker end-picker">
-                      {Array.from(
-                        { length: maxEndFor(selectedDay, selectedHour) - selectedHour },
-                        (_, i) => selectedHour + 1 + i
-                      ).map((h) => (
-                        <button
-                          type="button"
-                          key={h}
-                          className={`time-btn ${endHour === h ? 'active' : ''}`}
-                          onClick={() => setEndHour(h)}
-                        >
-                          {formatHour(h)}
-                        </button>
-                      ))}
-                    </div>
-
-                    <label>Who are you?</label>
-                    <div className="who-picker">
-                      {ROOMMATES.map((rm) => (
-                        <button
-                          type="button"
-                          key={rm}
-                          className={`who-btn ${who === rm ? 'active' : ''}`}
-                          onClick={() => setWho(rm)}
-                        >
-                          {rm}
-                        </button>
-                      ))}
-                    </div>
-
-                    <label>What is it?</label>
-                    <div className="type-picker">
-                      <button
-                        type="button"
-                        className={`type-btn ${type === 'event' ? 'active' : ''}`}
-                        onClick={() => setType('event')}
-                      >
-                        📅 Event
-                      </button>
-                      <button
-                        type="button"
-                        className={`type-btn ${type === 'date' ? 'active date-active' : ''}`}
-                        onClick={() => setType('date')}
-                      >
-                        💕 Date
-                      </button>
-                    </div>
-
-                    {type === 'date' && (
-                      <input
-                        type="text"
-                        placeholder="Who's the date with? (required)"
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                      />
-                    )}
-
-                    <textarea
-                      placeholder={
-                        type === 'date'
-                          ? 'Any other details? (optional)'
-                          : "What's the event? Who's coming?"
-                      }
-                      value={details}
-                      onChange={(e) => setDetails(e.target.value)}
-                    />
-
-                    <button type="submit" className="submit-btn">
-                      Reserve
-                    </button>
-                    <button type="button" className="cancel-btn" onClick={resetForm}>
-                      Cancel
-                    </button>
-                  </form>
-                )}
-              </div>
-            </div>
+            renderMonthView()
           )}
         </>
       ) : (
