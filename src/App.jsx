@@ -5,6 +5,7 @@ import './App.css'
 
 const ROOMMATES = ['Noah', 'Bryon', 'Jonas', 'Andrew', 'James']
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 8) // 8am - 11pm
+const DAY_END = 24 // reservations can run until midnight
 
 const dateKey = (d) => {
   const y = d.getFullYear()
@@ -14,9 +15,21 @@ const dateKey = (d) => {
 }
 
 const formatHour = (hour) => {
+  if (hour === 24) return '12:00 AM'
   const ampm = hour >= 12 ? 'PM' : 'AM'
   const displayHour = hour % 12 || 12
   return `${displayHour}:00 ${ampm}`
+}
+
+const resEnd = (res) => res.endHour || res.hour + 1
+
+// map of hour -> reservation covering that hour
+const buildDayMap = (dayRes) => {
+  const map = {}
+  Object.values(dayRes || {}).forEach((res) => {
+    for (let h = res.hour; h < resEnd(res); h++) map[h] = res
+  })
+  return map
 }
 
 const mondayOf = (d) => {
@@ -37,6 +50,7 @@ export default function App() {
   // form state
   const [selectedDay, setSelectedDay] = useState(null)
   const [selectedHour, setSelectedHour] = useState(null)
+  const [endHour, setEndHour] = useState(null)
   const [who, setWho] = useState(null)
   const [type, setType] = useState(null) // 'event' | 'date'
   const [details, setDetails] = useState('')
@@ -49,7 +63,6 @@ export default function App() {
     return d
   })
 
-  // One listener on the whole reservations tree - simple, and powers both views
   useEffect(() => {
     const resRef = ref(db, 'reservations')
     const unsubscribe = onValue(
@@ -69,6 +82,7 @@ export default function App() {
   const resetForm = () => {
     setSelectedDay(null)
     setSelectedHour(null)
+    setEndHour(null)
     setWho(null)
     setType(null)
     setDetails('')
@@ -87,9 +101,25 @@ export default function App() {
     resetForm()
   }
 
+  const pickStart = (day, hour) => {
+    setSelectedDay(day)
+    setSelectedHour(hour)
+    setEndHour(hour + 1) // default: 1 hour
+  }
+
+  // latest allowed end for the currently selected start (can't run into the next booking)
+  const maxEndFor = (day, startHour) => {
+    const dayRes = allReservations[dateKey(day)] || {}
+    let limit = DAY_END
+    Object.values(dayRes).forEach((res) => {
+      if (res.hour > startHour && res.hour < limit) limit = res.hour
+    })
+    return limit
+  }
+
   const handleReserve = async (e) => {
     e.preventDefault()
-    if (!selectedDay || selectedHour === null) return
+    if (!selectedDay || selectedHour === null || endHour === null) return
     if (!who) {
       alert('Pick who you are!')
       return
@@ -108,8 +138,12 @@ export default function App() {
     }
 
     const dStr = dateKey(selectedDay)
-    if (allReservations[dStr]?.[selectedHour]) {
-      alert('This time slot is already reserved!')
+    const dayRes = allReservations[dStr] || {}
+    const overlaps = Object.values(dayRes).some(
+      (res) => Math.max(selectedHour, res.hour) < Math.min(endHour, resEnd(res))
+    )
+    if (overlaps) {
+      alert('That time range overlaps an existing reservation!')
       return
     }
 
@@ -120,6 +154,7 @@ export default function App() {
         details: details.trim(),
         guestName: type === 'date' ? guestName.trim() : '',
         hour: selectedHour,
+        endHour,
         timestamp: new Date().toISOString()
       })
       resetForm()
@@ -128,16 +163,16 @@ export default function App() {
     }
   }
 
-  const handleDelete = async (dStr, hour) => {
+  const handleDelete = async (dStr, startHour) => {
     if (!window.confirm('Delete this reservation?')) return
     try {
-      await remove(ref(db, `reservations/${dStr}/${hour}`))
+      await remove(ref(db, `reservations/${dStr}/${startHour}`))
     } catch (error) {
       alert('Error deleting reservation: ' + error.message)
     }
   }
 
-  // ---- Roommate stats, computed from the full tree ----
+  // ---- Roommate stats ----
   const stats = ROOMMATES.map((rm) => {
     const events = []
     const dates = []
@@ -151,7 +186,6 @@ export default function App() {
         }
       })
     })
-    // count dates per guest
     const guestCounts = {}
     dates.forEach((d) => {
       const g = d.guestName || 'Unknown'
@@ -159,47 +193,6 @@ export default function App() {
     })
     return { name: rm, events, dates, guestCounts }
   })
-
-  const renderCell = (dStr, hour) => {
-    const res = allReservations[dStr]?.[hour]
-    if (!res) {
-      return (
-        <div
-          key={hour}
-          className="time-cell available"
-          onClick={() => {
-            setSelectedDay(new Date(dStr + 'T00:00:00'))
-            setSelectedHour(hour)
-          }}
-        >
-          <div className="cell-free"></div>
-        </div>
-      )
-    }
-    const isDate = res.type === 'date'
-    return (
-      <div key={hour} className={`time-cell reserved ${isDate ? 'is-date' : ''}`}>
-        <div className="cell-res">
-          <div className="res-name">
-            {isDate ? '💕 ' : '📅 '}
-            {res.name}
-          </div>
-          <div className="res-details">
-            {isDate ? `Date with ${res.guestName}` : res.details}
-          </div>
-          <button
-            className="cell-delete"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDelete(dStr, hour)
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="container">
@@ -240,50 +233,108 @@ export default function App() {
           ) : (
             <div className="week-view">
               <div className="week-grid">
-                <div className="time-column">
-                  <div className="day-header"></div>
-                  {HOURS.map((hour) => (
-                    <div key={hour} className="time-slot">
-                      {formatHour(hour)}
-                    </div>
-                  ))}
-                </div>
-
-                {days.map((day) => {
-                  const dStr = dateKey(day)
-                  const isToday = dStr === todayKey
-                  const dayRes = allReservations[dStr] || {}
-                  const hasRes = Object.keys(dayRes).length > 0
-
-                  return (
-                    <div key={dStr} className={`day-column ${isToday ? 'today' : ''}`}>
-                      <div className={`day-header ${isToday ? 'today-header' : ''}`}>
-                        <div className="day-name">
-                          {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                        </div>
-                        <div className="day-date">
-                          {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </div>
+                <div className="grid-inner">
+                  <div className="time-column">
+                    <div className="day-header"></div>
+                    {HOURS.map((hour) => (
+                      <div key={hour} className="time-slot">
+                        {formatHour(hour)}
                       </div>
+                    ))}
+                  </div>
 
-                      <div className="day-content">
-                        {!hasRes ? (
-                          <div
-                            className="free-all clickable"
-                            onClick={() => {
-                              setSelectedDay(day)
-                              setSelectedHour(null)
-                            }}
-                          >
-                            Free
+                  {days.map((day) => {
+                    const dStr = dateKey(day)
+                    const isToday = dStr === todayKey
+                    const dayRes = allReservations[dStr] || {}
+                    const hasRes = Object.keys(dayRes).length > 0
+                    const hourMap = buildDayMap(dayRes)
+
+                    return (
+                      <div key={dStr} className={`day-column ${isToday ? 'today' : ''}`}>
+                        <div className={`day-header ${isToday ? 'today-header' : ''}`}>
+                          <div className="day-name">
+                            {day.toLocaleDateString('en-US', { weekday: 'short' })}
                           </div>
-                        ) : (
-                          HOURS.map((hour) => renderCell(dStr, hour))
-                        )}
+                          <div className="day-date">
+                            {day.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="day-content">
+                          {!hasRes ? (
+                            <div
+                              className="free-all clickable"
+                              onClick={() => {
+                                setSelectedDay(day)
+                                setSelectedHour(null)
+                                setEndHour(null)
+                              }}
+                            >
+                              Free
+                            </div>
+                          ) : (
+                            HOURS.map((hour) => {
+                              const res = hourMap[hour]
+                              if (!res) {
+                                return (
+                                  <div
+                                    key={hour}
+                                    className="time-cell available"
+                                    onClick={() => pickStart(day, hour)}
+                                  >
+                                    <div className="cell-free"></div>
+                                  </div>
+                                )
+                              }
+                              const isStart = res.hour === hour
+                              const isDate = res.type === 'date'
+                              return (
+                                <div
+                                  key={hour}
+                                  className={`time-cell reserved ${isDate ? 'is-date' : ''}`}
+                                >
+                                  <div
+                                    className={`cell-res ${isStart ? '' : 'cell-cont'}`}
+                                  >
+                                    {isStart && (
+                                      <>
+                                        <div className="res-name">
+                                          {isDate ? '💕 ' : '📅 '}
+                                          {res.name}
+                                        </div>
+                                        <div className="res-time">
+                                          {formatHour(res.hour)} – {formatHour(resEnd(res))}
+                                        </div>
+                                        <div className="res-details">
+                                          {isDate
+                                            ? `Date with ${res.guestName}`
+                                            : res.details}
+                                        </div>
+                                        <button
+                                          className="cell-delete"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDelete(dStr, res.hour)
+                                          }}
+                                        >
+                                          ✕
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="form-panel">
@@ -300,16 +351,16 @@ export default function App() {
                         day: 'numeric'
                       })}
                     </div>
-                    <p className="hint">Pick a time:</p>
+                    <p className="hint">Pick a start time:</p>
                     <div className="time-picker">
                       {HOURS.map((hour) => {
                         const dStr = dateKey(selectedDay)
-                        const isTaken = allReservations[dStr]?.[hour]
+                        const isTaken = buildDayMap(allReservations[dStr])[hour]
                         return (
                           <button
                             key={hour}
                             className={`time-btn ${isTaken ? 'reserved' : ''}`}
-                            onClick={() => !isTaken && setSelectedHour(hour)}
+                            onClick={() => !isTaken && pickStart(selectedDay, hour)}
                             disabled={!!isTaken}
                           >
                             {formatHour(hour)}
@@ -325,8 +376,26 @@ export default function App() {
                         weekday: 'long',
                         month: 'short',
                         day: 'numeric'
-                      })}{' '}
-                      at {formatHour(selectedHour)}
+                      })}
+                      <br />
+                      {formatHour(selectedHour)} – {formatHour(endHour)}
+                    </div>
+
+                    <label>Until when?</label>
+                    <div className="time-picker end-picker">
+                      {Array.from(
+                        { length: maxEndFor(selectedDay, selectedHour) - selectedHour },
+                        (_, i) => selectedHour + 1 + i
+                      ).map((h) => (
+                        <button
+                          type="button"
+                          key={h}
+                          className={`time-btn ${endHour === h ? 'active' : ''}`}
+                          onClick={() => setEndHour(h)}
+                        >
+                          {formatHour(h)}
+                        </button>
+                      ))}
                     </div>
 
                     <label>Who are you?</label>

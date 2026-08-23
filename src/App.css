@@ -1,3 +1,8 @@
+:root {
+  --cell-h: 52px;
+  --header-h: 60px;
+}
+
 .container {
   max-width: 1600px;
   margin: 0 auto;
@@ -99,12 +104,17 @@ h1 {
 
 .week-grid {
   flex: 1;
-  display: flex;
   border: 1px solid #ddd;
   border-radius: 8px;
   overflow-y: auto;
   background: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* wrapper grows with content so column borders run the full scroll height */
+.grid-inner {
+  display: flex;
+  min-height: 100%;
 }
 
 .time-column {
@@ -117,14 +127,18 @@ h1 {
 }
 
 .time-column .day-header {
-  height: 60px;
+  height: var(--header-h);
   border-bottom: 2px solid #ddd;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: #f9f9f9;
+  z-index: 2;
 }
 
 .time-slot {
-  flex: 1;
-  min-height: 52px;
+  height: var(--cell-h);
+  flex-shrink: 0;
   padding: 4px;
   font-size: 11px;
   color: #666;
@@ -152,7 +166,7 @@ h1 {
 }
 
 .day-header {
-  height: 60px;
+  height: var(--header-h);
   padding: 8px;
   border-bottom: 2px solid #ddd;
   display: flex;
@@ -161,6 +175,9 @@ h1 {
   justify-content: center;
   background: white;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .day-header.today-header {
@@ -210,10 +227,10 @@ h1 {
 }
 
 .time-cell {
-  flex: 1;
-  min-height: 52px;
+  height: var(--cell-h);
+  flex-shrink: 0;
   border-bottom: 1px solid #eee;
-  padding: 3px;
+  padding: 2px 3px;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -246,6 +263,11 @@ h1 {
   overflow: hidden;
 }
 
+/* continuation cells of a multi-hour booking: same color, no repeated text */
+.cell-res.cell-cont {
+  border-radius: 0;
+}
+
 .time-cell.is-date .cell-res {
   background: #ffe0ec;
   border-left-color: #ff6b9d;
@@ -255,6 +277,12 @@ h1 {
   font-weight: 600;
   line-height: 1.2;
   font-size: 11px;
+}
+
+.res-time {
+  font-size: 9px;
+  color: #777;
+  font-weight: 600;
 }
 
 .res-details {
@@ -320,6 +348,7 @@ h1 {
   font-weight: 600;
   font-size: 13px;
   margin-bottom: 12px;
+  line-height: 1.5;
 }
 
 form {
@@ -456,6 +485,11 @@ textarea:focus {
   gap: 8px;
 }
 
+.end-picker {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
 .time-btn {
   padding: 8px;
   background: white;
@@ -470,6 +504,12 @@ textarea:focus {
 .time-btn:hover:not(:disabled) {
   background: #e8f4f8;
   border-color: #4a90e2;
+}
+
+.time-btn.active {
+  background: #4a90e2;
+  border-color: #4a90e2;
+  color: white;
 }
 
 .time-btn.reserved,
@@ -598,6 +638,11 @@ textarea:focus {
 }
 
 @media (max-width: 768px) {
+  :root {
+    --cell-h: 44px;
+    --header-h: 52px;
+  }
+
   .container {
     padding: 10px;
   }
@@ -608,15 +653,9 @@ textarea:focus {
 
   .time-slot {
     font-size: 9px;
-    min-height: 44px;
-  }
-
-  .time-cell {
-    min-height: 44px;
   }
 
   .day-header {
-    height: 52px;
     padding: 4px;
   }
 
@@ -628,7 +667,8 @@ textarea:focus {
     font-size: 10px;
   }
 
-  .res-details {
+  .res-details,
+  .res-time {
     display: none;
   }
 
