@@ -4,7 +4,7 @@ import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
 
 const ROOMMATES = ['Noah', 'Bryon', 'Jonas', 'Andrew', 'James']
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 8) // 8am - 11pm
+const HOURS = Array.from({ length: 24 }, (_, i) => i) // 12am - 12am, full day
 const DAY_END = 24 // reservations can run until midnight
 
 const dateKey = (d) => {
@@ -381,17 +381,20 @@ export default function App() {
               )
             }
             const isStart = res.hour === hour
+            const isEnd = hour === resEnd(res) - 1
+            const pos =
+              isStart && isEnd ? 'res-single' : isStart ? 'res-start' : isEnd ? 'res-end' : 'res-mid'
             const isDate = res.type === 'date'
             if (!isStart) {
               return (
-                <div key={hour} className={`day-row cont ${isDate ? 'is-date' : ''}`}>
+                <div key={hour} className={`day-row cont ${pos} ${isDate ? 'is-date' : ''}`}>
                   <div className="day-row-time">{formatHour(hour)}</div>
                   <div className="day-row-body cont-body"></div>
                 </div>
               )
             }
             return (
-              <div key={hour} className={`day-row booked ${isDate ? 'is-date' : ''}`}>
+              <div key={hour} className={`day-row booked ${pos} ${isDate ? 'is-date' : ''}`}>
                 <div className="day-row-time">{formatHour(hour)}</div>
                 <div className="day-row-body res-card">
                   <div className="res-card-top">
@@ -492,11 +495,20 @@ export default function App() {
                         )
                       }
                       const isStart = res.hour === hour
+                      const isEnd = hour === resEnd(res) - 1
+                      const pos =
+                        isStart && isEnd
+                          ? 'res-single'
+                          : isStart
+                            ? 'res-start'
+                            : isEnd
+                              ? 'res-end'
+                              : 'res-mid'
                       const isDate = res.type === 'date'
                       return (
                         <div
                           key={hour}
-                          className={`time-cell reserved ${isDate ? 'is-date' : ''}`}
+                          className={`time-cell reserved ${pos} ${isDate ? 'is-date' : ''}`}
                         >
                           <div className={`cell-res ${isStart ? '' : 'cell-cont'}`}>
                             {isStart && (
