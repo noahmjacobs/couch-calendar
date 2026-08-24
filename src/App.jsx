@@ -62,6 +62,10 @@ export default function App() {
   const [type, setType] = useState(null) // 'event' | 'date'
   const [details, setDetails] = useState('')
   const [guestName, setGuestName] = useState('')
+  const [expanded, setExpanded] = useState({}) // roommate-page expandable logs
+
+  const toggleExpanded = (key) =>
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
 
   const todayKey = dateKey(new Date())
   const weekStart = mondayOf(anchor)
@@ -210,6 +214,27 @@ export default function App() {
     })
     return { name: rm, events, dates, guestCounts }
   })
+
+  // ---- Monthly date leaderboard (resets automatically each month) ----
+  const monthPrefix = todayKey.slice(0, 7) // 'YYYY-MM'
+  const monthName = new Date().toLocaleDateString('en-US', { month: 'long' })
+  const medals = ['🥇', '🥈', '🥉']
+  const monthCounts = stats.map((s) => ({
+    name: s.name,
+    count: s.dates.filter((d) => d.dateStr.startsWith(monthPrefix)).length
+  }))
+  const leaderboard = [...monthCounts]
+    .sort((a, b) => b.count - a.count)
+    .map((entry) => {
+      // ties share a rank; nobody medals with zero dates
+      const rank = monthCounts.filter((o) => o.count > entry.count).length
+      return {
+        ...entry,
+        rank,
+        medal: entry.count > 0 && rank < 3 ? medals[rank] : `${rank + 1}.`,
+        isLeader: entry.count > 0 && rank === 0
+      }
+    })
 
   const navLabel = () => {
     if (calMode === 'day') {
@@ -674,63 +699,133 @@ export default function App() {
           {loading ? (
             <p className="loading-msg">Loading...</p>
           ) : (
-            stats.map((rm) => (
-              <div key={rm.name} className="roommate-card">
-                <div className="rm-header">
-                  <h3>{rm.name}</h3>
-                  <div className="rm-totals">
-                    <span className="badge event-badge">📅 {rm.events.length} events</span>
-                    <span className="badge date-badge">💕 {rm.dates.length} dates</span>
-                  </div>
+            <>
+              <div className="leaderboard roommate-card">
+                <h3 className="lb-title">🏆 {monthName} Date Leaderboard</h3>
+                <p className="lb-sub">Who's winning the couch this month? Resets monthly.</p>
+                <div className="lb-rows">
+                  {leaderboard.map((entry) => (
+                    <div
+                      key={entry.name}
+                      className={`lb-row ${entry.isLeader ? 'lb-leader' : ''}`}
+                    >
+                      <span className="lb-rank">{entry.medal}</span>
+                      <span className="lb-name">{entry.name}</span>
+                      <span className="lb-count">
+                        💕 {entry.count} {entry.count === 1 ? 'date' : 'dates'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-
-                {rm.events.length === 0 && rm.dates.length === 0 ? (
-                  <p className="rm-empty">Hasn't reserved the couch yet 😴</p>
-                ) : (
-                  <>
-                    {Object.keys(rm.guestCounts).length > 0 && (
-                      <div className="rm-section">
-                        <h4>Dates brought over</h4>
-                        <ul>
-                          {Object.entries(rm.guestCounts)
-                            .sort(([, a], [, b]) => b - a)
-                            .map(([guest, count]) => (
-                              <li key={guest}>
-                                <strong>{guest}</strong>
-                                {count > 1 && (
-                                  <span className="count-badge">×{count}</span>
-                                )}
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {rm.events.length > 0 && (
-                      <div className="rm-section">
-                        <h4>Events</h4>
-                        <ul>
-                          {rm.events
-                            .sort((a, b) => b.dateStr.localeCompare(a.dateStr))
-                            .slice(0, 5)
-                            .map((ev, i) => (
-                              <li key={i}>
-                                <span className="ev-date">
-                                  {new Date(ev.dateStr + 'T00:00:00').toLocaleDateString(
-                                    'en-US',
-                                    { month: 'short', day: 'numeric' }
-                                  )}
-                                </span>{' '}
-                                {ev.details}
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
-            ))
+
+              {stats.map((rm) => {
+                const datesOpen = expanded[`${rm.name}-dates`]
+                const eventsOpen = expanded[`${rm.name}-events`]
+                const sortedDates = [...rm.dates].sort((a, b) =>
+                  b.dateStr.localeCompare(a.dateStr)
+                )
+                const sortedEvents = [...rm.events].sort((a, b) =>
+                  b.dateStr.localeCompare(a.dateStr)
+                )
+                const fmtDay = (dStr) =>
+                  new Date(dStr + 'T00:00:00').toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric'
+                  })
+
+                return (
+                  <div key={rm.name} className="roommate-card">
+                    <div className="rm-header">
+                      <h3>{rm.name}</h3>
+                      <div className="rm-totals">
+                        <button
+                          className={`badge event-badge tappable ${eventsOpen ? 'open' : ''}`}
+                          onClick={() => toggleExpanded(`${rm.name}-events`)}
+                        >
+                          📅 {rm.events.length} {rm.events.length === 1 ? 'event' : 'events'}{' '}
+                          {rm.events.length > 0 && (eventsOpen ? '▴' : '▾')}
+                        </button>
+                        <button
+                          className={`badge date-badge tappable ${datesOpen ? 'open' : ''}`}
+                          onClick={() => toggleExpanded(`${rm.name}-dates`)}
+                        >
+                          💕 {rm.dates.length} {rm.dates.length === 1 ? 'date' : 'dates'}{' '}
+                          {rm.dates.length > 0 && (datesOpen ? '▴' : '▾')}
+                        </button>
+                      </div>
+                    </div>
+
+                    {rm.events.length === 0 && rm.dates.length === 0 ? (
+                      <p className="rm-empty">Hasn't reserved the couch yet 😴</p>
+                    ) : (
+                      <>
+                        {datesOpen && (
+                          <div className="rm-section">
+                            <h4>All dates</h4>
+                            <ul>
+                              {sortedDates.map((d, i) => (
+                                <li key={i}>
+                                  <span className="ev-date">{fmtDay(d.dateStr)}</span>{' '}
+                                  <strong>{d.guestName || 'Unknown'}</strong>
+                                  {d.details ? ` — ${d.details}` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {eventsOpen && (
+                          <div className="rm-section">
+                            <h4>All events</h4>
+                            <ul>
+                              {sortedEvents.map((ev, i) => (
+                                <li key={i}>
+                                  <span className="ev-date">{fmtDay(ev.dateStr)}</span>{' '}
+                                  {ev.details}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {!datesOpen && Object.keys(rm.guestCounts).length > 0 && (
+                          <div className="rm-section">
+                            <h4>Dates brought over</h4>
+                            <ul>
+                              {Object.entries(rm.guestCounts)
+                                .sort(([, a], [, b]) => b - a)
+                                .map(([guest, count]) => (
+                                  <li key={guest}>
+                                    <strong>{guest}</strong>
+                                    {count > 1 && (
+                                      <span className="count-badge">×{count}</span>
+                                    )}
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {!eventsOpen && rm.events.length > 0 && (
+                          <div className="rm-section">
+                            <h4>Recent events</h4>
+                            <ul>
+                              {sortedEvents.slice(0, 5).map((ev, i) => (
+                                <li key={i}>
+                                  <span className="ev-date">{fmtDay(ev.dateStr)}</span>{' '}
+                                  {ev.details}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </>
           )}
         </div>
       )}

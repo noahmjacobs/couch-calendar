@@ -850,6 +850,63 @@ textarea:focus {
   box-shadow: var(--glass-shadow);
 }
 
+/* ---- Leaderboard ---- */
+
+.leaderboard {
+  grid-column: 1 / -1;
+}
+
+.lb-title {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.lb-sub {
+  font-size: 12px;
+  color: #86868b;
+  margin-bottom: 14px;
+}
+
+.lb-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+.lb-row.lb-leader {
+  background: rgba(255, 204, 77, 0.25);
+  border-color: rgba(230, 168, 0, 0.4);
+}
+
+.lb-rank {
+  font-size: 16px;
+  min-width: 28px;
+  font-weight: 700;
+  color: #6e6e73;
+}
+
+.lb-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.lb-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c2255c;
+}
+
 .rm-header {
   display: flex;
   flex-direction: column;
@@ -873,6 +930,22 @@ textarea:focus {
   padding: 4px 10px;
   border-radius: 999px;
   font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.badge.tappable {
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.badge.tappable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(31, 38, 135, 0.15);
+}
+
+.badge.tappable.open {
+  border-color: currentColor;
 }
 
 .event-badge {
