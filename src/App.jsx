@@ -363,66 +363,70 @@ export default function App() {
     const dStr = dateKey(anchor)
     const hourMap = buildDayMap(allReservations[dStr])
 
+    // free hours are rows; a reservation is ONE card sized to span its hours
+    const rows = []
+    HOURS.forEach((hour) => {
+      const res = hourMap[hour]
+      if (!res) {
+        rows.push(
+          <div
+            key={hour}
+            className={`day-free-row ${selectedHour === hour && selectedDay && dateKey(selectedDay) === dStr ? 'selected' : ''}`}
+            onClick={() => pickStart(anchor, hour)}
+          >
+            +
+          </div>
+        )
+        return
+      }
+      if (res.hour !== hour) return // covered by the card below
+      const span = resEnd(res) - res.hour
+      const isDate = res.type === 'date'
+      rows.push(
+        <div
+          key={hour}
+          className={`day-res-card ${isDate ? 'is-date' : ''}`}
+          style={{ height: `calc(${span} * var(--day-row-h) - 6px)` }}
+        >
+          <div className="res-card-top">
+            <span className="res-name">
+              {isDate ? '💕 ' : '📅 '}
+              {res.name}
+            </span>
+            <span className="res-time">
+              {formatHour(res.hour)} – {formatHour(resEnd(res))}
+            </span>
+          </div>
+          <div className="res-card-details">
+            {isDate ? `Date with ${res.guestName}` : res.details}
+            {isDate && res.details ? ` — ${res.details}` : ''}
+          </div>
+          <button
+            className="cell-delete visible"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDelete(dStr, res.hour)
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )
+    })
+
     return (
       <div className="week-view">
         <div className="day-view">
-          {HOURS.map((hour) => {
-            const res = hourMap[hour]
-            if (!res) {
-              return (
-                <div
-                  key={hour}
-                  className={`day-row free ${selectedHour === hour && selectedDay && dateKey(selectedDay) === dStr ? 'selected' : ''}`}
-                  onClick={() => pickStart(anchor, hour)}
-                >
-                  <div className="day-row-time">{formatHour(hour)}</div>
-                  <div className="day-row-body free-body">+</div>
+          <div className="day-grid">
+            <div className="day-time-col">
+              {HOURS.map((h) => (
+                <div key={h} className="day-time-label">
+                  {formatHour(h)}
                 </div>
-              )
-            }
-            const isStart = res.hour === hour
-            const isEnd = hour === resEnd(res) - 1
-            const pos =
-              isStart && isEnd ? 'res-single' : isStart ? 'res-start' : isEnd ? 'res-end' : 'res-mid'
-            const isDate = res.type === 'date'
-            if (!isStart) {
-              return (
-                <div key={hour} className={`day-row cont ${pos} ${isDate ? 'is-date' : ''}`}>
-                  <div className="day-row-time">{formatHour(hour)}</div>
-                  <div className="day-row-body cont-body"></div>
-                </div>
-              )
-            }
-            return (
-              <div key={hour} className={`day-row booked ${pos} ${isDate ? 'is-date' : ''}`}>
-                <div className="day-row-time">{formatHour(hour)}</div>
-                <div className="day-row-body res-card">
-                  <div className="res-card-top">
-                    <span className="res-name">
-                      {isDate ? '💕 ' : '📅 '}
-                      {res.name}
-                    </span>
-                    <span className="res-time">
-                      {formatHour(res.hour)} – {formatHour(resEnd(res))}
-                    </span>
-                  </div>
-                  <div className="res-card-details">
-                    {isDate ? `Date with ${res.guestName}` : res.details}
-                    {isDate && res.details ? ` — ${res.details}` : ''}
-                  </div>
-                  <button
-                    className="cell-delete visible"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDelete(dStr, res.hour)
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+              ))}
+            </div>
+            <div className="day-body-col">{rows}</div>
+          </div>
         </div>
         {renderForm()}
       </div>
