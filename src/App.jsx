@@ -1,29 +1,40 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { db } from './firebase'
 import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
 
-const ROOMMATES = ['Noah', 'Bryon', 'Jonas', 'Andrew', 'James']
-const HOURS = Array.from({ length: 24 }, (_, i) => i) // 12am - 12am, full day
-const DAY_END = 24 // reservations can run until midnight
+const ROOMMATES = [
+  { name: 'Noah', color: '#0A84FF', ink: '#fff' },
+  { name: 'Bryon', color: '#30D158', ink: '#0B3D1C' },
+  { name: 'Jonas', color: '#FF9F0A', ink: '#4A2A00' },
+  { name: 'Andrew', color: '#BF5AF2', ink: '#fff' },
+  { name: 'James', color: '#FF375F', ink: '#fff' }
+]
+const NAMES = ROOMMATES.map((r) => r.name)
+const COLOR = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.color]))
+const INK = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.ink]))
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const DAY_END = 24
 
-const dateKey = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+const dateKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const formatHour = (hour) => {
   if (hour === 24) return '12:00 AM'
   const ampm = hour >= 12 ? 'PM' : 'AM'
-  const displayHour = hour % 12 || 12
-  return `${displayHour}:00 ${ampm}`
+  return `${hour % 12 || 12}:00 ${ampm}`
 }
-
+const shortHour = (hour) => {
+  if (hour === 24) return '12 AM'
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  return `${hour % 12 || 12} ${ampm}`
+}
+const rangeLabel = (a, b) => {
+  const sameHalf = (a < 12) === (b < 12 || b === 24)
+  return sameHalf ? `${shortHour(a).replace(/ (AM|PM)/, '')} – ${shortHour(b)}` : `${shortHour(a)} – ${shortHour(b)}`
+}
 const resEnd = (res) => res.endHour || res.hour + 1
 
-// map of hour -> reservation covering that hour
 const buildDayMap = (dayRes) => {
   const map = {}
   Object.values(dayRes || {}).forEach((res) => {
@@ -35,17 +46,87 @@ const buildDayMap = (dayRes) => {
 const mondayOf = (d) => {
   const copy = new Date(d)
   const day = copy.getDay()
-  const diff = copy.getDate() - day + (day === 0 ? -6 : 1)
-  copy.setDate(diff)
+  copy.setDate(copy.getDate() - day + (day === 0 ? -6 : 1))
   copy.setHours(0, 0, 0, 0)
   return copy
 }
 
-export default function App() {
-  const [view, setView] = useState('calendar') // 'calendar' | 'roommates'
-  const [calMode, setCalMode] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+const sortedDay = (dayRes) =>
+  Object.values(dayRes || {}).sort((a, b) => a.hour - b.hour)
+
+const load = (key, fallback) => {
+  try {
+    const v = localStorage.getItem(key)
+    return v === null ? fallback : v
+  } catch {
+    return fallback
+  }
+}
+
+/* ---------- small pieces ---------- */
+
+const Avatar = ({ name, size = 36 }) => (
+  <div
+    className="avatar"
+    style={{
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      background: COLOR[name] || '#8E8E93',
+      color: INK[name] || '#fff',
+      fontSize: Math.round(size * 0.42)
+    }}
+  >
+    {name ? name[0] : '?'}
+  </div>
+)
+
+const KindDot = ({ type }) => (
+  <span className="kind">
+    <i className="dot" style={{ background: type === 'date' ? '#FF2D55' : '#8E8E93' }} />
+    {type === 'date' ? 'Date' : 'Event'}
+  </span>
+)
+
+const Chevron = () => (
+  <svg className="chev" width="8" height="13" viewBox="0 0 8 13" aria-hidden="true">
+    <path d="M1.5 1.5L6.5 6.5L1.5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const TabIcon = ({ kind, active }) => {
+  const s = active ? 'var(--accent)' : 'var(--tab-idle)'
+  if (kind === 'calendar')
+    return (
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <rect x="3.5" y="5" width="19" height="17" rx="4.5" fill="none" stroke={s} strokeWidth="1.8" />
+        <path d="M3.5 10h19" stroke={s} strokeWidth="1.8" />
+        <circle cx="9" cy="15.5" r="1.6" fill={s} />
+        <circle cx="17" cy="15.5" r="1.6" fill={s} />
+      </svg>
+    )
+  if (kind === 'roommates')
+    return (
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <circle cx="10" cy="10" r="4.2" fill="none" stroke={s} strokeWidth="1.8" />
+        <circle cx="17.5" cy="12" r="3.2" fill="none" stroke={s} strokeWidth="1.8" />
+        <path d="M3.5 21.5c1.4-3.4 4-5 6.5-5s5.1 1.6 6.5 5" fill="none" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <path d="M4 8h18M4 13h18M4 18h18" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="9" cy="8" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
+      <circle cx="17" cy="18" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
+    </svg>
   )
+}
+
+/* ---------- app ---------- */
+
+export default function App() {
+  const [tab, setTab] = useState('calendar')
+  const [calMode, setCalMode] = useState('day')
   const [anchor, setAnchor] = useState(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -53,34 +134,20 @@ export default function App() {
   })
   const [allReservations, setAllReservations] = useState({})
   const [loading, setLoading] = useState(true)
+  const [openRes, setOpenRes] = useState(null)
 
-  // form state
-  const [selectedDay, setSelectedDay] = useState(null)
-  const [selectedHour, setSelectedHour] = useState(null)
-  const [endHour, setEndHour] = useState(null)
-  const [who, setWho] = useState(null)
-  const [type, setType] = useState(null) // 'event' | 'date'
-  const [details, setDetails] = useState('')
-  const [guestName, setGuestName] = useState('')
-  const [expanded, setExpanded] = useState({}) // roommate-page expandable logs
+  const [me, setMe] = useState(() => load('couch.me', ''))
+  const [partner, setPartner] = useState(() => load('couch.partner', ''))
+  const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
 
-  const toggleExpanded = (key) =>
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
-
-  const todayKey = dateKey(new Date())
-  const weekStart = mondayOf(anchor)
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart)
-    d.setDate(d.getDate() + i)
-    return d
-  })
+  const [sheet, setSheet] = useState(null) // {day, hour, endHour, type, guestName, details}
 
   useEffect(() => {
     const resRef = ref(db, 'reservations')
     const unsubscribe = onValue(
       resRef,
-      (snapshot) => {
-        setAllReservations(snapshot.exists() ? snapshot.val() : {})
+      (snap) => {
+        setAllReservations(snap.exists() ? snap.val() : {})
         setLoading(false)
       },
       (error) => {
@@ -91,15 +158,33 @@ export default function App() {
     return () => unsubscribe()
   }, [])
 
-  const resetForm = () => {
-    setSelectedDay(null)
-    setSelectedHour(null)
-    setEndHour(null)
-    setWho(null)
-    setType(null)
-    setDetails('')
-    setGuestName('')
-  }
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'auto') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('couch.theme', theme)
+    } catch {}
+  }, [theme])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('couch.me', me)
+      localStorage.setItem('couch.partner', partner)
+    } catch {}
+  }, [me, partner])
+
+  const todayKey = dateKey(new Date())
+  const weekStart = mondayOf(anchor)
+  const weekDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(weekStart)
+        d.setDate(d.getDate() + i)
+        return d
+      }),
+    [weekStart.getTime()]
+  )
 
   const navigate = (dir) => {
     const d = new Date(anchor)
@@ -107,28 +192,8 @@ export default function App() {
     else if (calMode === 'week') d.setDate(d.getDate() + dir * 7)
     else d.setMonth(d.getMonth() + dir)
     setAnchor(d)
-    resetForm()
   }
 
-  const goToToday = () => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    setAnchor(d)
-    resetForm()
-  }
-
-  const switchMode = (mode) => {
-    setCalMode(mode)
-    resetForm()
-  }
-
-  const pickStart = (day, hour) => {
-    setSelectedDay(day)
-    setSelectedHour(hour)
-    setEndHour(hour + 1) // default: 1 hour
-  }
-
-  // latest allowed end for the selected start (can't run into the next booking)
   const maxEndFor = (day, startHour) => {
     const dayRes = allReservations[dateKey(day)] || {}
     let limit = DAY_END
@@ -138,47 +203,47 @@ export default function App() {
     return limit
   }
 
+  const openSheet = (day, hour) => {
+    if (!me) {
+      setTab('settings')
+      return
+    }
+    const limit = maxEndFor(day, hour)
+    setSheet({
+      day,
+      hour,
+      endHour: Math.min(hour + 2, limit),
+      type: 'event',
+      guestName: partner,
+      details: ''
+    })
+  }
+
   const handleReserve = async (e) => {
     e.preventDefault()
-    if (!selectedDay || selectedHour === null || endHour === null) return
-    if (!who) {
-      alert('Pick who you are!')
-      return
-    }
-    if (!type) {
-      alert('Is it an event or a date?')
-      return
-    }
-    if (type === 'date' && !guestName.trim()) {
-      alert("Who's the date with? Put their name down.")
-      return
-    }
-    if (type === 'event' && !details.trim()) {
-      alert("What's the event? Add some details.")
-      return
-    }
+    if (!sheet) return
+    const { day, hour, endHour, type, guestName, details } = sheet
+    if (type === 'date' && !guestName.trim()) return alert("Who's the date with?")
+    if (type === 'event' && !details.trim()) return alert("What's the event?")
 
-    const dStr = dateKey(selectedDay)
+    const dStr = dateKey(day)
     const dayRes = allReservations[dStr] || {}
     const overlaps = Object.values(dayRes).some(
-      (res) => Math.max(selectedHour, res.hour) < Math.min(endHour, resEnd(res))
+      (res) => Math.max(hour, res.hour) < Math.min(endHour, resEnd(res))
     )
-    if (overlaps) {
-      alert('That time range overlaps an existing reservation!')
-      return
-    }
+    if (overlaps) return alert('That time overlaps an existing reservation.')
 
     try {
-      await set(ref(db, `reservations/${dStr}/${selectedHour}`), {
-        name: who,
+      await set(ref(db, `reservations/${dStr}/${hour}`), {
+        name: me,
         type,
         details: details.trim(),
         guestName: type === 'date' ? guestName.trim() : '',
-        hour: selectedHour,
+        hour,
         endHour,
         timestamp: new Date().toISOString()
       })
-      resetForm()
+      setSheet(null)
     } catch (error) {
       alert('Error making reservation: ' + error.message)
     }
@@ -193,642 +258,589 @@ export default function App() {
     }
   }
 
-  // ---- Roommate stats ----
-  const stats = ROOMMATES.map((rm) => {
-    const events = []
-    const dates = []
-    Object.entries(allReservations).forEach(([dStr, dayRes]) => {
-      Object.values(dayRes || {}).forEach((res) => {
-        if (res.name !== rm) return
-        if (res.type === 'date') {
-          dates.push({ ...res, dateStr: dStr })
-        } else {
-          events.push({ ...res, dateStr: dStr })
-        }
-      })
-    })
-    const guestCounts = {}
-    dates.forEach((d) => {
-      const g = d.guestName || 'Unknown'
-      guestCounts[g] = (guestCounts[g] || 0) + 1
-    })
-    return { name: rm, events, dates, guestCounts }
-  })
+  /* ---------- reservation card ---------- */
 
-  // ---- Monthly date leaderboard (resets automatically each month) ----
-  const monthPrefix = todayKey.slice(0, 7) // 'YYYY-MM'
-  const monthName = new Date().toLocaleDateString('en-US', { month: 'long' })
-  const medals = ['🥇', '🥈', '🥉']
-  const monthCounts = stats.map((s) => ({
-    name: s.name,
-    count: s.dates.filter((d) => d.dateStr.startsWith(monthPrefix)).length
-  }))
-  const leaderboard = [...monthCounts]
-    .sort((a, b) => b.count - a.count)
-    .map((entry) => {
-      // ties share a rank; nobody medals with zero dates
-      const rank = monthCounts.filter((o) => o.count > entry.count).length
-      return {
-        ...entry,
-        rank,
-        medal: entry.count > 0 && rank < 3 ? medals[rank] : `${rank + 1}.`,
-        isLeader: entry.count > 0 && rank === 0
-      }
-    })
-
-  const navLabel = () => {
-    if (calMode === 'day') {
-      const label = anchor.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric'
-      })
-      return dateKey(anchor) === todayKey ? `${label} (Today)` : label
-    }
-    if (calMode === 'week') {
-      return `${weekDays[0].toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric'
-      })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
-    }
-    return anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const ResCard = ({ res, dStr, compact }) => {
+    const mine = res.name === me
+    const id = `${dStr}-${res.hour}`
+    const open = openRes === id
+    const showDetails = mine || open
+    const detail =
+      res.type === 'date'
+        ? `Date with ${res.guestName || 'someone'}${res.details ? ` — ${res.details}` : ''}`
+        : res.details
+    return (
+      <div
+        className={`res-card${compact ? ' compact' : ''}`}
+        style={{ '--tint': COLOR[res.name] || '#8E8E93' }}
+        onClick={() => setOpenRes(open ? null : id)}
+      >
+        <Avatar name={res.name} size={compact ? 36 : 38} />
+        <div className="res-main">
+          <div className="res-top">
+            <span className="res-name">{res.name}</span>
+            <KindDot type={res.type} />
+          </div>
+          <div className="res-time">
+            {formatHour(res.hour)} – {formatHour(resEnd(res))}
+          </div>
+          {showDetails && detail ? <div className="res-detail">{detail}</div> : null}
+          {!showDetails ? <div className="res-hint">Tap to see details</div> : null}
+          {mine && open ? (
+            <button
+              type="button"
+              className="res-delete"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete(dStr, res.hour)
+              }}
+            >
+              Delete reservation
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
   }
 
-  // ---- Reservation form panel (shared by day + week) ----
-  const renderForm = () => (
-    <div className="form-panel">
-      <h3>Make a Reservation</h3>
+  /* ---------- day ---------- */
 
-      {!selectedDay ? (
-        <p className="hint">
-          {calMode === 'day'
-            ? 'Tap a free time to reserve it'
-            : 'Click a day or free time slot to reserve'}
-        </p>
-      ) : selectedHour === null ? (
-        <div>
-          <div className="selected-info">
-            {selectedDay.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'short',
-              day: 'numeric'
-            })}
+  const renderDay = () => {
+    const dStr = dateKey(anchor)
+    const map = buildDayMap(allReservations[dStr])
+    const rows = []
+    let h = 0
+    while (h < 24) {
+      const res = map[h]
+      if (res) {
+        rows.push(<ResCard key={`r${h}`} res={res} dStr={dStr} />)
+        h = resEnd(res)
+      } else {
+        let end = h
+        while (end < 24 && !map[end]) end++
+        const start = h
+        rows.push(
+          <button key={`f${h}`} type="button" className="free-row" onClick={() => openSheet(anchor, start)}>
+            <span className="free-range">{rangeLabel(start, end)}</span>
+            <span className="free-line" />
+            <span className="free-word">Free</span>
+          </button>
+        )
+        h = end
+      }
+    }
+    const empty = Object.keys(allReservations[dStr] || {}).length === 0
+    if (empty)
+      return (
+        <div className="empty">
+          <div className="empty-badge">
+            <span className="empty-ring" />
           </div>
-          <p className="hint">Pick a start time:</p>
-          <div className="time-picker">
-            {HOURS.map((hour) => {
-              const dStr = dateKey(selectedDay)
-              const isTaken = buildDayMap(allReservations[dStr])[hour]
+          <div className="empty-title">The couch is all yours</div>
+          <p className="empty-sub">
+            Nothing booked on {anchor.toLocaleDateString('en-US', { weekday: 'long' })}. Tap Reserve to claim a
+            stretch of it.
+          </p>
+        </div>
+      )
+    return <div className="stack">{rows}</div>
+  }
+
+  /* ---------- week ---------- */
+
+  const renderWeek = () => {
+    const groups = weekDays
+      .map((d) => ({ d, dStr: dateKey(d), rows: sortedDay(allReservations[dateKey(d)]) }))
+      .filter((g) => g.rows.length)
+    const freeDays = weekDays
+      .filter((d) => !Object.keys(allReservations[dateKey(d)] || {}).length)
+      .map((d) => d.toLocaleDateString('en-US', { weekday: 'short' }))
+
+    return (
+      <div className="stack">
+        {groups.map((g) => (
+          <div key={g.dStr} className="group">
+            <div className="group-label">
+              {g.d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              {g.dStr === todayKey ? ' · Today' : ''}
+            </div>
+            <div className="glass-list">
+              {g.rows.map((res) => (
+                <ResCard key={res.hour} res={res} dStr={g.dStr} compact />
+              ))}
+            </div>
+          </div>
+        ))}
+        {freeDays.length ? (
+          <div className="free-row static">
+            <span className="free-line" />
+            <span className="free-word">{freeDays.join(', ')} are free</span>
+            <span className="free-line" />
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  /* ---------- month ---------- */
+
+  const renderMonth = () => {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+    const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
+    const gridStart = mondayOf(first)
+    // whole weeks, enough to reach the last of the month (5 rows usually, 6 when it spills)
+    const span = Math.round((last - gridStart) / 86400000) + 1
+    const cells = Array.from({ length: Math.ceil(span / 7) * 7 }, (_, i) => {
+      const d = new Date(gridStart)
+      d.setDate(d.getDate() + i)
+      return d
+    })
+    const selKey = dateKey(anchor)
+    const selRows = sortedDay(allReservations[selKey])
+
+    return (
+      <div className="stack">
+        <div className="glass-card month-card">
+          <div className="month-weekdays">
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w, i) => (
+              <div key={i}>{w}</div>
+            ))}
+          </div>
+          <div className="month-grid">
+            {cells.map((d) => {
+              const k = dateKey(d)
+              const inMonth = d.getMonth() === anchor.getMonth()
+              const sel = k === selKey
+              const names = sortedDay(allReservations[k]).map((r) => r.name)
               return (
                 <button
-                  key={hour}
-                  className={`time-btn ${isTaken ? 'reserved' : ''}`}
-                  onClick={() => !isTaken && pickStart(selectedDay, hour)}
-                  disabled={!!isTaken}
+                  key={k}
+                  type="button"
+                  className="month-cell"
+                  onClick={() => setAnchor(new Date(d))}
                 >
-                  {formatHour(hour)}
+                  <span className={`month-num${sel ? ' sel' : ''}${inMonth ? '' : ' out'}`}>{d.getDate()}</span>
+                  <span className="month-dots">
+                    {names.slice(0, 3).map((n, i) => (
+                      <i key={i} className="dot" style={{ background: COLOR[n] || '#8E8E93' }} />
+                    ))}
+                  </span>
                 </button>
               )
             })}
           </div>
         </div>
-      ) : (
-        <form onSubmit={handleReserve}>
-          <div className="selected-info">
-            {selectedDay.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'short',
-              day: 'numeric'
-            })}
-            <br />
-            {formatHour(selectedHour)} – {formatHour(endHour)}
+        <div className="group">
+          <div className="group-label">
+            {anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
-
-          <label>Until when?</label>
-          <div className="time-picker end-picker">
-            {Array.from(
-              { length: maxEndFor(selectedDay, selectedHour) - selectedHour },
-              (_, i) => selectedHour + 1 + i
-            ).map((h) => (
-              <button
-                type="button"
-                key={h}
-                className={`time-btn ${endHour === h ? 'active' : ''}`}
-                onClick={() => setEndHour(h)}
-              >
-                {formatHour(h)}
-              </button>
-            ))}
-          </div>
-
-          <label>Who are you?</label>
-          <div className="who-picker">
-            {ROOMMATES.map((rm) => (
-              <button
-                type="button"
-                key={rm}
-                className={`who-btn ${who === rm ? 'active' : ''}`}
-                onClick={() => setWho(rm)}
-              >
-                {rm}
-              </button>
-            ))}
-          </div>
-
-          <label>What is it?</label>
-          <div className="type-picker">
-            <button
-              type="button"
-              className={`type-btn ${type === 'event' ? 'active' : ''}`}
-              onClick={() => setType('event')}
-            >
-              📅 Event
-            </button>
-            <button
-              type="button"
-              className={`type-btn ${type === 'date' ? 'active date-active' : ''}`}
-              onClick={() => setType('date')}
-            >
-              💕 Date
-            </button>
-          </div>
-
-          {type === 'date' && (
-            <input
-              type="text"
-              placeholder="Who's the date with? (required)"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-            />
-          )}
-
-          <textarea
-            placeholder={
-              type === 'date'
-                ? 'Any other details? (optional)'
-                : "What's the event? Who's coming?"
-            }
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
-          />
-
-          <button type="submit" className="submit-btn">
-            Reserve
-          </button>
-          <button type="button" className="cancel-btn" onClick={resetForm}>
-            Cancel
-          </button>
-        </form>
-      )}
-    </div>
-  )
-
-  // ---- Day view ----
-  const renderDayView = () => {
-    const dStr = dateKey(anchor)
-    const hourMap = buildDayMap(allReservations[dStr])
-
-    // free hours are rows; a reservation is ONE card sized to span its hours
-    const rows = []
-    HOURS.forEach((hour) => {
-      const res = hourMap[hour]
-      if (!res) {
-        rows.push(
-          <div
-            key={hour}
-            className={`day-free-row ${selectedHour === hour && selectedDay && dateKey(selectedDay) === dStr ? 'selected' : ''}`}
-            onClick={() => pickStart(anchor, hour)}
-          >
-            +
-          </div>
-        )
-        return
-      }
-      if (res.hour !== hour) return // covered by the card below
-      const span = resEnd(res) - res.hour
-      const isDate = res.type === 'date'
-      rows.push(
-        <div
-          key={hour}
-          className={`day-res-card ${isDate ? 'is-date' : ''}`}
-          style={{ height: `calc(${span} * var(--day-row-h) - 6px)` }}
-        >
-          <div className="res-card-top">
-            <span className="res-name">
-              {isDate ? '💕 ' : '📅 '}
-              {res.name}
-            </span>
-            <span className="res-time">
-              {formatHour(res.hour)} – {formatHour(resEnd(res))}
-            </span>
-          </div>
-          <div className="res-card-details">
-            {isDate ? `Date with ${res.guestName}` : res.details}
-            {isDate && res.details ? ` — ${res.details}` : ''}
-          </div>
-          <button
-            className="cell-delete visible"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDelete(dStr, res.hour)
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      )
-    })
-
-    return (
-      <div className="week-view">
-        <div className="day-view">
-          <div className="day-grid">
-            <div className="day-time-col">
-              {HOURS.map((h) => (
-                <div key={h} className="day-time-label">
-                  {formatHour(h)}
-                </div>
+          {selRows.length ? (
+            <div className="glass-list">
+              {selRows.map((res) => (
+                <ResCard key={res.hour} res={res} dStr={selKey} compact />
               ))}
             </div>
-            <div className="day-body-col">{rows}</div>
-          </div>
+          ) : (
+            <button type="button" className="free-row" onClick={() => openSheet(anchor, 19)}>
+              <span className="free-range">All day</span>
+              <span className="free-line" />
+              <span className="free-word">Free</span>
+            </button>
+          )}
         </div>
-        {renderForm()}
       </div>
     )
   }
 
-  // ---- Week view ----
-  const renderWeekView = () => (
-    <div className="week-view">
-      <div className="week-grid">
-        <div className="grid-inner">
-          <div className="time-column">
-            <div className="day-header"></div>
-            {HOURS.map((hour) => (
-              <div key={hour} className="time-slot">
-                {formatHour(hour)}
-              </div>
-            ))}
-          </div>
+  /* ---------- roommates ---------- */
 
-          {weekDays.map((day) => {
-            const dStr = dateKey(day)
-            const isToday = dStr === todayKey
-            const dayRes = allReservations[dStr] || {}
-            const hasRes = Object.keys(dayRes).length > 0
-            const hourMap = buildDayMap(dayRes)
+  const stats = NAMES.map((rm) => {
+    let events = 0
+    let dates = 0
+    let monthDates = 0
+    const monthPrefix = todayKey.slice(0, 7)
+    Object.entries(allReservations).forEach(([dStr, dayRes]) => {
+      Object.values(dayRes || {}).forEach((res) => {
+        if (res.name !== rm) return
+        if (res.type === 'date') {
+          dates++
+          if (dStr.startsWith(monthPrefix)) monthDates++
+        } else events++
+      })
+    })
+    return { name: rm, events, dates, monthDates }
+  })
+  const leaderboard = [...stats].sort((a, b) => b.monthDates - a.monthDates)
 
+  const renderRoommates = () => (
+    <div className="stack">
+      <div className="glass-card">
+        <div className="lb-head">
+          <h3>Date Leaderboard</h3>
+          <span className="lb-month">{new Date().toLocaleDateString('en-US', { month: 'long' })}</span>
+        </div>
+        <p className="lb-sub">Resets on the 1st.</p>
+        <div className="lb-rows">
+          {leaderboard.map((e, i) => {
+            const leader = i === 0 && e.monthDates > 0
             return (
-              <div key={dStr} className={`day-column ${isToday ? 'today' : ''}`}>
-                <div
-                  className={`day-header clickable-header ${isToday ? 'today-header' : ''}`}
-                  onClick={() => {
-                    setAnchor(new Date(day))
-                    switchMode('day')
-                  }}
-                  title="Open day view"
-                >
-                  <div className="day-name">
-                    {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                  </div>
-                  <div className="day-date">
-                    {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
-                </div>
-
-                <div className="day-content">
-                  {!hasRes ? (
-                    <div
-                      className="free-all clickable"
-                      onClick={() => {
-                        setSelectedDay(day)
-                        setSelectedHour(null)
-                        setEndHour(null)
-                      }}
-                    >
-                      Free
-                    </div>
-                  ) : (
-                    HOURS.map((hour) => {
-                      const res = hourMap[hour]
-                      if (!res) {
-                        return (
-                          <div
-                            key={hour}
-                            className="time-cell available"
-                            onClick={() => pickStart(day, hour)}
-                          >
-                            <div className="cell-free"></div>
-                          </div>
-                        )
-                      }
-                      const isStart = res.hour === hour
-                      const isEnd = hour === resEnd(res) - 1
-                      const pos =
-                        isStart && isEnd
-                          ? 'res-single'
-                          : isStart
-                            ? 'res-start'
-                            : isEnd
-                              ? 'res-end'
-                              : 'res-mid'
-                      const isDate = res.type === 'date'
-                      return (
-                        <div
-                          key={hour}
-                          className={`time-cell reserved ${pos} ${isDate ? 'is-date' : ''}`}
-                        >
-                          <div className={`cell-res ${isStart ? '' : 'cell-cont'}`}>
-                            {isStart && (
-                              <>
-                                <div className="res-name">
-                                  {isDate ? '💕 ' : '📅 '}
-                                  {res.name}
-                                </div>
-                                <div className="res-time">
-                                  {formatHour(res.hour)} – {formatHour(resEnd(res))}
-                                </div>
-                                <div className="res-details">
-                                  {isDate ? `Date with ${res.guestName}` : res.details}
-                                </div>
-                                <button
-                                  className="cell-delete"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDelete(dStr, res.hour)
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
+              <div key={e.name} className={`lb-row${leader ? ' leader' : ''}`}>
+                <span className="lb-rank">{i + 1}</span>
+                <Avatar name={e.name} size={30} />
+                <span className="lb-name">{e.name}</span>
+                <span className="lb-count">{e.monthDates}</span>
               </div>
             )
           })}
         </div>
       </div>
-      {renderForm()}
-    </div>
-  )
-
-  // ---- Month view ----
-  const renderMonthView = () => {
-    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
-    const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
-    const gridStart = mondayOf(first)
-    const cells = []
-    const cursor = new Date(gridStart)
-    while (cursor <= last || cursor.getDay() !== 1) {
-      cells.push(new Date(cursor))
-      cursor.setDate(cursor.getDate() + 1)
-      if (cells.length > 42) break
-    }
-
-    return (
-      <div className="month-view">
-        <div className="month-weekdays">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-            <div key={d} className="month-weekday">
-              {d}
+      <div className="group">
+        <div className="group-label">All time</div>
+        <div className="glass-list">
+          {stats.map((s) => (
+            <div key={s.name} className="list-row">
+              <Avatar name={s.name} size={36} />
+              <div className="res-main">
+                <span className="res-name">{s.name}</span>
+                <div className="res-time">
+                  {s.events} {s.events === 1 ? 'event' : 'events'} · {s.dates} {s.dates === 1 ? 'date' : 'dates'}
+                </div>
+              </div>
+              <Chevron />
             </div>
           ))}
         </div>
-        <div className="month-grid">
-          {cells.map((day) => {
-            const dStr = dateKey(day)
-            const inMonth = day.getMonth() === anchor.getMonth()
-            const isToday = dStr === todayKey
-            const dayRes = Object.values(allReservations[dStr] || {}).sort(
-              (a, b) => a.hour - b.hour
-            )
+      </div>
+    </div>
+  )
 
-            return (
-              <div
-                key={dStr}
-                className={`month-cell ${inMonth ? '' : 'out-month'} ${isToday ? 'today' : ''}`}
-                onClick={() => {
-                  setAnchor(new Date(day))
-                  switchMode('day')
-                }}
-              >
-                <div className="month-daynum">{day.getDate()}</div>
-                <div className="month-cell-items">
-                  {dayRes.slice(0, 3).map((res, i) => (
-                    <div
-                      key={i}
-                      className={`month-item ${res.type === 'date' ? 'is-date' : ''}`}
-                    >
-                      {res.name}
-                    </div>
-                  ))}
-                  {dayRes.length > 3 && (
-                    <div className="month-more">+{dayRes.length - 3} more</div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+  /* ---------- settings ---------- */
+
+  const renderSettings = () => (
+    <div className="stack">
+      <div className="group">
+        <div className="group-label">You</div>
+        <div className="glass-list">
+          <div className="list-row column">
+            <span className="row-title">Your name</span>
+            <div className="chips">
+              {NAMES.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`chip${me === n ? ' on' : ''}`}
+                  style={me === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
+                  onClick={() => setMe(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="list-row">
+            <span className="row-title">Partner</span>
+            <input
+              className="row-input"
+              type="text"
+              placeholder="Optional"
+              value={partner}
+              onChange={(e) => setPartner(e.target.value)}
+            />
+          </div>
         </div>
+        <p className="footnote">
+          Set a partner and their name fills in automatically when you book a date. Leave it empty and you'll be
+          asked each time.
+        </p>
+      </div>
+
+      <div className="group">
+        <div className="group-label">Appearance</div>
+        <div className="glass-card">
+          <div className="segmented">
+            {['light', 'dark', 'auto'].map((t) => (
+              <button key={t} type="button" className={theme === t ? 'on' : ''} onClick={() => setTheme(t)}>
+                {t === 'auto' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+          <p className="footnote inset">Automatic follows your phone's appearance setting.</p>
+        </div>
+      </div>
+    </div>
+  )
+
+  /* ---------- reservation sheet ---------- */
+
+  const renderSheet = () => {
+    if (!sheet) return null
+    const limit = maxEndFor(sheet.day, sheet.hour)
+    const dayMap = buildDayMap(allReservations[dateKey(sheet.day)])
+    const starts = HOURS.filter((h) => !dayMap[h])
+    const ends = Array.from({ length: limit - sheet.hour }, (_, i) => sheet.hour + 1 + i)
+    const dur = sheet.endHour - sheet.hour
+
+    return (
+      <div className="sheet-wrap" role="dialog" aria-modal="true">
+        <div className="sheet-scrim" onClick={() => setSheet(null)} />
+        <form className="sheet" onSubmit={handleReserve}>
+          <div className="sheet-nav">
+            <button type="button" className="nav-btn" onClick={() => setSheet(null)}>
+              Cancel
+            </button>
+            <span className="nav-title">New Reservation</span>
+            <button type="submit" className="nav-btn strong">
+              Add
+            </button>
+          </div>
+
+          <div className="sheet-body">
+            <div className="who-strip">
+              <Avatar name={me} size={26} />
+              <span>
+                Booking as <strong>{me}</strong>
+              </span>
+            </div>
+
+            <div className="glass-card">
+              <div className="time-head">
+                <span className="time-big">
+                  {formatHour(sheet.hour)} – {formatHour(sheet.endHour)}
+                </span>
+                <span className="time-dur">
+                  {dur} {dur === 1 ? 'hr' : 'hrs'}
+                </span>
+              </div>
+              <div className="sheet-sub">
+                {sheet.day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </div>
+              <div className="pick-label">Starts</div>
+              <div className="scroller">
+                {starts.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    className={`time-chip${sheet.hour === h ? ' on' : ''}`}
+                    onClick={() =>
+                      setSheet((s) => ({ ...s, hour: h, endHour: Math.min(h + 2, maxEndFor(s.day, h)) }))
+                    }
+                  >
+                    {shortHour(h)}
+                  </button>
+                ))}
+              </div>
+              <div className="pick-label">Ends</div>
+              <div className="scroller">
+                {ends.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    className={`time-chip${sheet.endHour === h ? ' on' : ''}`}
+                    onClick={() => setSheet((s) => ({ ...s, endHour: h }))}
+                  >
+                    {shortHour(h)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="type-tiles">
+              {[
+                { key: 'event', title: 'Event', sub: 'People coming over', dot: '#8E8E93' },
+                { key: 'date', title: 'Date', sub: 'Couch to yourself', dot: '#FF2D55' }
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`tile${sheet.type === t.key ? ' on' : ''}`}
+                  onClick={() =>
+                    setSheet((s) => ({
+                      ...s,
+                      type: t.key,
+                      guestName: t.key === 'date' && !s.guestName ? partner : s.guestName
+                    }))
+                  }
+                >
+                  <i className="dot" style={{ background: t.dot }} />
+                  <span className="tile-title">{t.title}</span>
+                  <span className="tile-sub">{t.sub}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="glass-list">
+              {sheet.type === 'date' ? (
+                <div className="list-row">
+                  <span className="row-title narrow">With</span>
+                  <input
+                    className="row-input"
+                    type="text"
+                    placeholder="Their name"
+                    value={sheet.guestName}
+                    onChange={(e) => setSheet((s) => ({ ...s, guestName: e.target.value }))}
+                  />
+                  {partner && sheet.guestName === partner ? <span className="autofill">Autofilled</span> : null}
+                </div>
+              ) : null}
+              <textarea
+                className="row-textarea"
+                placeholder={sheet.type === 'date' ? 'Any other details? (optional)' : "What's the event? Who's coming?"}
+                value={sheet.details}
+                onChange={(e) => setSheet((s) => ({ ...s, details: e.target.value }))}
+              />
+            </div>
+
+            <button type="submit" className="primary">
+              Reserve the couch
+            </button>
+          </div>
+        </form>
       </div>
     )
   }
 
-  return (
-    <div className="container">
-      <header className="app-header">
-        <h1>🛋️ Couch Reservation</h1>
-        <div className="view-toggle">
-          <button
-            className={view === 'calendar' ? 'active' : ''}
-            onClick={() => setView('calendar')}
-          >
-            Calendar
-          </button>
-          <button
-            className={view === 'roommates' ? 'active' : ''}
-            onClick={() => setView('roommates')}
-          >
-            Roommates
-          </button>
-        </div>
-      </header>
+  /* ---------- shell ---------- */
 
-      {view === 'calendar' ? (
-        <>
-          <div className="week-nav">
-            <div className="mode-toggle">
+  const title =
+    tab === 'roommates'
+      ? 'Roommates'
+      : tab === 'settings'
+        ? 'Settings'
+        : calMode === 'day'
+          ? anchor.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+          : calMode === 'week'
+            ? `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+            : anchor.toLocaleDateString('en-US', { month: 'long' })
+
+  const eyebrow =
+    tab !== 'calendar'
+      ? null
+      : calMode === 'day'
+        ? anchor.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
+        : calMode === 'week'
+          ? 'THIS WEEK'
+          : anchor.getFullYear()
+
+  return (
+    <div className="app">
+      <header className="app-head">
+        <div className="head-top">
+          <div>
+            {eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}
+            <h1>{title}</h1>
+          </div>
+          {tab === 'calendar' ? (
+            <div className="head-nav">
+              <button type="button" onClick={() => navigate(-1)} aria-label="Previous">
+                <svg width="9" height="15" viewBox="0 0 9 15"><path d="M7 1.5L1.5 7.5L7 13.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date()
+                  d.setHours(0, 0, 0, 0)
+                  setAnchor(d)
+                }}
+              >
+                Today
+              </button>
+              <button type="button" onClick={() => navigate(1)} aria-label="Next">
+                <svg width="9" height="15" viewBox="0 0 9 15"><path d="M2 1.5L7.5 7.5L2 13.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </div>
+          ) : me ? (
+            <Avatar name={me} size={34} />
+          ) : null}
+        </div>
+
+        {tab === 'calendar' ? (
+          <>
+            <div className="segmented">
               {['day', 'week', 'month'].map((m) => (
-                <button
-                  key={m}
-                  className={calMode === m ? 'active' : ''}
-                  onClick={() => switchMode(m)}
-                >
+                <button key={m} type="button" className={calMode === m ? 'on' : ''} onClick={() => setCalMode(m)}>
                   {m[0].toUpperCase() + m.slice(1)}
                 </button>
               ))}
             </div>
-            <div className="nav-controls">
-              <button onClick={() => navigate(-1)}>←</button>
-              <h2>{navLabel()}</h2>
-              <button onClick={() => navigate(1)}>→</button>
-              <button className="today-btn" onClick={goToToday}>
-                Today
-              </button>
-            </div>
-          </div>
-
-          {loading ? (
-            <p className="loading-msg">Loading calendar...</p>
-          ) : calMode === 'day' ? (
-            renderDayView()
-          ) : calMode === 'week' ? (
-            renderWeekView()
-          ) : (
-            renderMonthView()
-          )}
-        </>
-      ) : (
-        <div className="roommates-view">
-          {loading ? (
-            <p className="loading-msg">Loading...</p>
-          ) : (
-            <>
-              <div className="leaderboard roommate-card">
-                <h3 className="lb-title">🏆 {monthName} Date Leaderboard</h3>
-                <p className="lb-sub">Who's winning the couch this month? Resets monthly.</p>
-                <div className="lb-rows">
-                  {leaderboard.map((entry) => (
-                    <div
-                      key={entry.name}
-                      className={`lb-row ${entry.isLeader ? 'lb-leader' : ''}`}
+            {calMode === 'week' ? (
+              <div className="week-strip">
+                {weekDays.map((d) => {
+                  const k = dateKey(d)
+                  const sel = k === dateKey(anchor)
+                  const has = Object.keys(allReservations[k] || {}).length > 0
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`pill${sel ? ' on' : ''}`}
+                      onClick={() => {
+                        setAnchor(new Date(d))
+                        setCalMode('day')
+                      }}
                     >
-                      <span className="lb-rank">{entry.medal}</span>
-                      <span className="lb-name">{entry.name}</span>
-                      <span className="lb-count">
-                        💕 {entry.count} {entry.count === 1 ? 'date' : 'dates'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      <span className="pill-day">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                      <span className="pill-num">{d.getDate()}</span>
+                      <i className="pill-mark" style={{ opacity: has ? 1 : 0 }} />
+                    </button>
+                  )
+                })}
               </div>
+            ) : null}
+          </>
+        ) : null}
+      </header>
 
-              {stats.map((rm) => {
-                const datesOpen = expanded[`${rm.name}-dates`]
-                const eventsOpen = expanded[`${rm.name}-events`]
-                const sortedDates = [...rm.dates].sort((a, b) =>
-                  b.dateStr.localeCompare(a.dateStr)
-                )
-                const sortedEvents = [...rm.events].sort((a, b) =>
-                  b.dateStr.localeCompare(a.dateStr)
-                )
-                const fmtDay = (dStr) =>
-                  new Date(dStr + 'T00:00:00').toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric'
-                  })
+      <main className="app-body">
+        {loading ? (
+          <div className="stack">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton" style={{ opacity: 1 - i * 0.18 }}>
+                <span className="sk-avatar" />
+                <span className="sk-lines">
+                  <i style={{ width: `${52 - i * 6}%` }} />
+                  <i className="thin" style={{ width: `${34 - i * 4}%` }} />
+                </span>
+              </div>
+            ))}
+            <p className="loading-msg">Syncing with the apartment…</p>
+          </div>
+        ) : tab === 'calendar' ? (
+          calMode === 'day' ? renderDay() : calMode === 'week' ? renderWeek() : renderMonth()
+        ) : tab === 'roommates' ? (
+          renderRoommates()
+        ) : (
+          renderSettings()
+        )}
+      </main>
 
-                return (
-                  <div key={rm.name} className="roommate-card">
-                    <div className="rm-header">
-                      <h3>{rm.name}</h3>
-                      <div className="rm-totals">
-                        <button
-                          className={`badge event-badge tappable ${eventsOpen ? 'open' : ''}`}
-                          onClick={() => toggleExpanded(`${rm.name}-events`)}
-                        >
-                          📅 {rm.events.length} {rm.events.length === 1 ? 'event' : 'events'}{' '}
-                          {rm.events.length > 0 && (eventsOpen ? '▴' : '▾')}
-                        </button>
-                        <button
-                          className={`badge date-badge tappable ${datesOpen ? 'open' : ''}`}
-                          onClick={() => toggleExpanded(`${rm.name}-dates`)}
-                        >
-                          💕 {rm.dates.length} {rm.dates.length === 1 ? 'date' : 'dates'}{' '}
-                          {rm.dates.length > 0 && (datesOpen ? '▴' : '▾')}
-                        </button>
-                      </div>
-                    </div>
+      {tab === 'calendar' && !loading ? (
+        <button type="button" className="fab" onClick={() => openSheet(anchor, 19)}>
+          <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
+            <path d="M7.5 1.5v12M1.5 7.5h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Reserve
+        </button>
+      ) : null}
 
-                    {rm.events.length === 0 && rm.dates.length === 0 ? (
-                      <p className="rm-empty">Hasn't reserved the couch yet 😴</p>
-                    ) : (
-                      <>
-                        {datesOpen && (
-                          <div className="rm-section">
-                            <h4>All dates</h4>
-                            <ul>
-                              {sortedDates.map((d, i) => (
-                                <li key={i}>
-                                  <span className="ev-date">{fmtDay(d.dateStr)}</span>{' '}
-                                  <strong>{d.guestName || 'Unknown'}</strong>
-                                  {d.details ? ` — ${d.details}` : ''}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+      <nav className="tabbar">
+        {[
+          { key: 'calendar', label: 'Calendar' },
+          { key: 'roommates', label: 'Roommates' },
+          { key: 'settings', label: 'Settings' }
+        ].map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`tab${tab === t.key ? ' on' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            <TabIcon kind={t.key} active={tab === t.key} />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
 
-                        {eventsOpen && (
-                          <div className="rm-section">
-                            <h4>All events</h4>
-                            <ul>
-                              {sortedEvents.map((ev, i) => (
-                                <li key={i}>
-                                  <span className="ev-date">{fmtDay(ev.dateStr)}</span>{' '}
-                                  {ev.details}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {!datesOpen && Object.keys(rm.guestCounts).length > 0 && (
-                          <div className="rm-section">
-                            <h4>Dates brought over</h4>
-                            <ul>
-                              {Object.entries(rm.guestCounts)
-                                .sort(([, a], [, b]) => b - a)
-                                .map(([guest, count]) => (
-                                  <li key={guest}>
-                                    <strong>{guest}</strong>
-                                    {count > 1 && (
-                                      <span className="count-badge">×{count}</span>
-                                    )}
-                                  </li>
-                                ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {!eventsOpen && rm.events.length > 0 && (
-                          <div className="rm-section">
-                            <h4>Recent events</h4>
-                            <ul>
-                              {sortedEvents.slice(0, 5).map((ev, i) => (
-                                <li key={i}>
-                                  <span className="ev-date">{fmtDay(ev.dateStr)}</span>{' '}
-                                  {ev.details}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </>
-          )}
-        </div>
-      )}
+      {renderSheet()}
     </div>
   )
 }
