@@ -813,6 +813,112 @@
   transform: scale(0.94);
 }
 
+/* ---- splash ---- */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 0 40px;
+  background:
+    radial-gradient(110% 60% at 12% 6%, var(--bg-1) 0%, transparent 58%),
+    radial-gradient(100% 60% at 100% 18%, var(--bg-2) 0%, transparent 56%),
+    radial-gradient(100% 60% at 50% 104%, var(--bg-3) 0%, transparent 62%),
+    var(--bg);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.splash.leaving {
+  opacity: 0;
+  transform: scale(1.04);
+  pointer-events: none;
+}
+.splash-dots {
+  display: flex;
+  gap: 7px;
+}
+.dot.big {
+  width: 9px;
+  height: 9px;
+  border-radius: 5px;
+}
+.splash-card {
+  width: 100%;
+  padding: 34px 26px 30px;
+  text-align: center;
+  border: 0.5px solid var(--glass-border);
+  border-radius: 34px;
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  box-shadow: 0 24px 60px rgba(31, 38, 135, 0.16);
+}
+.splash-title {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1;
+  background: linear-gradient(120deg, #0a84ff 0%, #bf5af2 52%, #ff2d55 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.splash-sub {
+  margin-top: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.splash-tag {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+.splash-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + 46px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.splash-bar {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.splash-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: splash-load 1.6s ease-out forwards;
+}
+@keyframes splash-load {
+  from {
+    width: 10%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.splash-status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
 /* ---- sheet ---- */
 
 .sheet-wrap {

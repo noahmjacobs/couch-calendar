@@ -91,6 +91,27 @@ const KindDot = ({ type }) => (
   </span>
 )
 
+const Splash = ({ leaving }) => (
+  <div className={`splash${leaving ? ' leaving' : ''}`}>
+    <div className="splash-dots">
+      {ROOMMATES.map((r) => (
+        <i key={r.name} className="dot big" style={{ background: r.color }} />
+      ))}
+    </div>
+    <div className="splash-card">
+      <div className="splash-title">449 Boyos</div>
+      <p className="splash-sub">One couch. Five roommates. Book it before someone else does.</p>
+    </div>
+    <div className="splash-tag">#Nodurfing</div>
+    <div className="splash-foot">
+      <span className="splash-bar">
+        <i />
+      </span>
+      <span className="splash-status">CONNECTING TO THE APARTMENT</span>
+    </div>
+  </div>
+)
+
 const Chevron = () => (
   <svg className="chev" width="8" height="13" viewBox="0 0 8 13" aria-hidden="true">
     <path d="M1.5 1.5L6.5 6.5L1.5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -145,6 +166,16 @@ export default function App() {
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
 
   const [sheet, setSheet] = useState(null) // {day, hour, endHour, type, guestName, details}
+  const [splash, setSplash] = useState('in') // 'in' | 'out' | 'gone'
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setSplash('out'), 1500)
+    const t2 = setTimeout(() => setSplash('gone'), 2000)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [])
 
   useEffect(() => {
     const resRef = ref(db, 'reservations')
@@ -895,6 +926,7 @@ export default function App() {
       </nav>
 
       {renderSheet()}
+      {splash !== 'gone' ? <Splash leaving={splash === 'out'} /> : null}
     </div>
   )
 }
