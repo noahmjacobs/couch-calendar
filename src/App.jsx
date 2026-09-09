@@ -54,6 +54,9 @@ const mondayOf = (d) => {
 const sortedDay = (dayRes) =>
   Object.values(dayRes || {}).sort((a, b) => a.hour - b.hour)
 
+const fmtDay = (dStr) =>
+  new Date(`${dStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
 const load = (key, fallback) => {
   try {
     const v = localStorage.getItem(key)
@@ -135,6 +138,7 @@ export default function App() {
   const [allReservations, setAllReservations] = useState({})
   const [loading, setLoading] = useState(true)
   const [openRes, setOpenRes] = useState(null)
+  const [openRm, setOpenRm] = useState(null)
 
   const [me, setMe] = useState(() => load('couch.me', ''))
   const [partner, setPartner] = useState(() => load('couch.partner', ''))
@@ -455,20 +459,26 @@ export default function App() {
   /* ---------- roommates ---------- */
 
   const stats = NAMES.map((rm) => {
-    let events = 0
-    let dates = 0
+    const events = []
+    const dates = []
     let monthDates = 0
     const monthPrefix = todayKey.slice(0, 7)
     Object.entries(allReservations).forEach(([dStr, dayRes]) => {
       Object.values(dayRes || {}).forEach((res) => {
         if (res.name !== rm) return
         if (res.type === 'date') {
-          dates++
+          dates.push({ ...res, dateStr: dStr })
           if (dStr.startsWith(monthPrefix)) monthDates++
-        } else events++
+        } else events.push({ ...res, dateStr: dStr })
       })
     })
-    return { name: rm, events, dates, monthDates }
+    const newestFirst = (a, b) => b.dateStr.localeCompare(a.dateStr) || b.hour - a.hour
+    return {
+      name: rm,
+      events: events.sort(newestFirst),
+      dates: dates.sort(newestFirst),
+      monthDates
+    }
   })
   const leaderboard = [...stats].sort((a, b) => b.monthDates - a.monthDates)
 
@@ -497,18 +507,62 @@ export default function App() {
       <div className="group">
         <div className="group-label">All time</div>
         <div className="glass-list">
-          {stats.map((s) => (
-            <div key={s.name} className="list-row">
-              <Avatar name={s.name} size={36} />
-              <div className="res-main">
-                <span className="res-name">{s.name}</span>
-                <div className="res-time">
-                  {s.events} {s.events === 1 ? 'event' : 'events'} · {s.dates} {s.dates === 1 ? 'date' : 'dates'}
-                </div>
+          {stats.map((s) => {
+            const open = openRm === s.name
+            const log = [
+              { key: 'dates', head: 'Dates', rows: s.dates },
+              { key: 'events', head: 'Events', rows: s.events }
+            ].filter((sect) => sect.rows.length)
+            return (
+              <div key={s.name} className="rm-block">
+                <button
+                  type="button"
+                  className={`list-row rm-row${open ? ' open' : ''}`}
+                  aria-expanded={open}
+                  onClick={() => setOpenRm(open ? null : s.name)}
+                >
+                  <Avatar name={s.name} size={36} />
+                  <div className="res-main">
+                    <span className="res-name">{s.name}</span>
+                    <div className="res-time">
+                      {s.events.length} {s.events.length === 1 ? 'event' : 'events'} · {s.dates.length}{' '}
+                      {s.dates.length === 1 ? 'date' : 'dates'}
+                    </div>
+                  </div>
+                  <Chevron />
+                </button>
+                {open ? (
+                  <div className="rm-detail">
+                    {log.length === 0 ? (
+                      <p className="rm-empty">Hasn't reserved the couch yet.</p>
+                    ) : (
+                      log.map((sect) => (
+                        <div key={sect.key} className="rm-sect">
+                          <div className="rm-sect-head">{sect.head}</div>
+                          {sect.rows.map((r) => (
+                            <div key={`${r.dateStr}-${r.hour}`} className="rm-item">
+                              <span className="rm-when">{fmtDay(r.dateStr)}</span>
+                              <span className="rm-what">
+                                {sect.key === 'dates' ? (
+                                  <>
+                                    <strong>{r.guestName || 'Someone'}</strong>
+                                    {r.details ? ` — ${r.details}` : ''}
+                                  </>
+                                ) : (
+                                  r.details || 'No details'
+                                )}
+                              </span>
+                              <span className="rm-hours">{rangeLabel(r.hour, resEnd(r))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
               </div>
-              <Chevron />
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

@@ -13,17 +13,24 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   color: #1d1d1f;
-  background: #f4f5f9;
+  /* same gradient as .app, so the launch paint matches the app instead of
+     flashing a flat colour before React mounts */
+  background:
+    radial-gradient(120% 70% at 8% 0%, var(--bg-1, #d9e8ff) 0%, transparent 58%),
+    radial-gradient(95% 60% at 100% 12%, var(--bg-2, #ffddec) 0%, transparent 55%),
+    radial-gradient(90% 55% at 50% 100%, var(--bg-3, #dff3ec) 0%, transparent 62%),
+    var(--bg, #f4f5f9);
+  background-attachment: fixed;
   min-height: 100dvh;
 }
 
 :root[data-theme='dark'] body {
-  background: #000;
+  color: #fff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) body {
-    background: #000;
+    color: #fff;
   }
 }
 
