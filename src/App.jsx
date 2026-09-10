@@ -481,41 +481,39 @@ export default function App() {
     return <div className="stack">{rows}</div>
   }
 
-  /* ---------- week ---------- */
+  /* ---------- selected day (under the week strip and the month grid) ---------- */
 
-  const renderWeek = () => {
-    const groups = weekDays
-      .map((d) => ({ d, dStr: dateKey(d), rows: dayList(allReservations[dateKey(d)]) }))
-      .filter((g) => g.rows.length)
-    const freeDays = weekDays
-      .filter((d) => !Object.keys(allReservations[dateKey(d)] || {}).length)
-      .map((d) => d.toLocaleDateString('en-US', { weekday: 'short' }))
-
+  const renderSelectedDay = () => {
+    const selKey = dateKey(anchor)
+    const selRows = dayList(allReservations[selKey])
     return (
-      <div className="stack">
-        {groups.map((g) => (
-          <div key={g.dStr} className="group">
-            <div className="group-label">
-              {g.d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-              {g.dStr === todayKey ? ' · Today' : ''}
-            </div>
-            <div className="glass-list">
-              {g.rows.map((res) => (
-                <ResCard key={res.key} res={res} dStr={g.dStr} compact />
-              ))}
-            </div>
+      <div className="group">
+        <div className="group-label">
+          {anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          {selKey === todayKey ? ' · Today' : ''}
+        </div>
+        {selRows.length ? (
+          <div className="glass-list">
+            {selRows.map((res) => (
+              <ResCard key={res.key} res={res} dStr={selKey} compact />
+            ))}
           </div>
-        ))}
-        {freeDays.length ? (
-          <div className="free-row static">
+        ) : (
+          <button type="button" className="free-row" onClick={() => openSheet(anchor, 19 * 60)}>
+            <span className="free-range">All day</span>
             <span className="free-line" />
-            <span className="free-word">{freeDays.join(', ')} are free</span>
-            <span className="free-line" />
-          </div>
-        ) : null}
+            <span className="free-word">Free</span>
+          </button>
+        )}
       </div>
     )
   }
+
+  /* ---------- week ---------- */
+
+  // the day pills in the header select a day; the body shows that day, the same
+  // way the month grid does, instead of jumping to the Day view
+  const renderWeek = () => <div className="stack">{renderSelectedDay()}</div>
 
   /* ---------- month ---------- */
 
@@ -531,7 +529,6 @@ export default function App() {
       return d
     })
     const selKey = dateKey(anchor)
-    const selRows = dayList(allReservations[selKey])
 
     return (
       <div className="stack">
@@ -565,24 +562,7 @@ export default function App() {
             })}
           </div>
         </div>
-        <div className="group">
-          <div className="group-label">
-            {anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </div>
-          {selRows.length ? (
-            <div className="glass-list">
-              {selRows.map((res) => (
-                <ResCard key={res.key} res={res} dStr={selKey} compact />
-              ))}
-            </div>
-          ) : (
-            <button type="button" className="free-row" onClick={() => openSheet(anchor, 19 * 60)}>
-              <span className="free-range">All day</span>
-              <span className="free-line" />
-              <span className="free-word">Free</span>
-            </button>
-          )}
-        </div>
+        {renderSelectedDay()}
       </div>
     )
   }
@@ -990,10 +970,7 @@ export default function App() {
                       key={k}
                       type="button"
                       className={`pill${sel ? ' on' : ''}`}
-                      onClick={() => {
-                        setAnchor(new Date(d))
-                        setCalMode('day')
-                      }}
+                      onClick={() => setAnchor(new Date(d))}
                     >
                       <span className="pill-day">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
                       <span className="pill-num">{d.getDate()}</span>
