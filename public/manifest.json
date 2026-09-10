@@ -1,0 +1,9 @@
+{
+  "name": "449 Boyos",
+  "short_name": "Couch",
+  "description": "One couch. Five roommates. Book it before someone else does.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait"
+}
