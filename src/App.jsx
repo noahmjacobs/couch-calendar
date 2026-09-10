@@ -294,6 +294,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [openRes, setOpenRes] = useState(null)
   const [openRm, setOpenRm] = useState(null)
+  const [asking, setAsking] = useState(null) // reservation id a release request is being written for
+  const [askNote, setAskNote] = useState('')
 
   const [me, setMe] = useState(() => load('couch.me', ''))
   // once signed in, this phone belongs to that roommate: the name cannot be changed
@@ -496,12 +498,41 @@ export default function App() {
     }
   }
 
-  const handleDelete = async (dStr, key) => {
-    if (!window.confirm('Delete this reservation?')) return
+  const handleDelete = async (dStr, key, message = 'Delete this reservation?') => {
+    if (!window.confirm(message)) return
     try {
       await remove(ref(db, `reservations/${dStr}/${key}`))
     } catch (error) {
       alert('Error deleting reservation: ' + error.message)
+    }
+  }
+
+  // asking someone to give up their slot. Requests are stored on the reservation
+  // itself (reservations/{day}/{key}/requests/{from}), so they need no extra
+  // database rule and disappear with the reservation.
+  const sendRequest = async (dStr, key) => {
+    if (!me) {
+      setTab('settings')
+      return
+    }
+    try {
+      await set(ref(db, `reservations/${dStr}/${key}/requests/${me}`), {
+        from: me,
+        note: askNote.trim(),
+        timestamp: new Date().toISOString()
+      })
+      setAsking(null)
+      setAskNote('')
+    } catch (error) {
+      alert('Could not send the request: ' + error.message)
+    }
+  }
+
+  const dropRequest = async (dStr, key, from) => {
+    try {
+      await remove(ref(db, `reservations/${dStr}/${key}/requests/${from}`))
+    } catch (error) {
+      alert('Could not update the request: ' + error.message)
     }
   }
 
@@ -512,6 +543,10 @@ export default function App() {
     const id = `${dStr}-${res.key}`
     const open = openRes === id
     const showDetails = mine || open
+    const requests = Object.values(res.requests || {}).sort((a, b) =>
+      (a.timestamp || '').localeCompare(b.timestamp || '')
+    )
+    const myRequest = me ? (res.requests || {})[me] : null
     const detail =
       res.type === 'date'
         ? `Date with ${res.guestName || 'someone'}${res.details ? ` — ${res.details}` : ''}`
@@ -533,6 +568,19 @@ export default function App() {
           </div>
           {showDetails && detail ? <div className="res-detail">{detail}</div> : null}
           {!showDetails ? <div className="res-hint">Tap to see details</div> : null}
+          {mine && open && requests.length ? (
+            <div className="req-list">
+              {requests.map((r) => (
+                <div key={r.from} className="req-item">
+                  <Avatar name={r.from} size={22} />
+                  <span>
+                    <strong>{r.from}</strong> asked you to release this
+                    {r.note ? ` — “${r.note}”` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {mine && open ? (
             <button
               type="button"
@@ -542,13 +590,119 @@ export default function App() {
                 handleDelete(dStr, res.key)
               }}
             >
-              Delete reservation
+              {requests.length ? 'Release the couch' : 'Delete reservation'}
             </button>
+          ) : null}
+          {!mine && open && me ? (
+            myRequest ? (
+              <div className="req-sent">
+                You asked {res.name} to release this.
+                <button
+                  type="button"
+                  className="req-link"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    dropRequest(dStr, res.key, me)
+                  }}
+                >
+                  Withdraw
+                </button>
+              </div>
+            ) : asking === id ? (
+              <div className="req-form" onClick={(e) => e.stopPropagation()}>
+                <input
+                  className="req-input"
+                  type="text"
+                  placeholder="Add a note (optional)"
+                  value={askNote}
+                  onChange={(e) => setAskNote(e.target.value)}
+                />
+                <div className="req-actions">
+                  <button type="button" className="res-delete ask" onClick={() => sendRequest(dStr, res.key)}>
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    className="req-link"
+                    onClick={() => {
+                      setAsking(null)
+                      setAskNote('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="res-delete ask"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setAskNote('')
+                  setAsking(id)
+                }}
+              >
+                Ask {res.name} to release it
+              </button>
+            )
           ) : null}
         </div>
       </div>
     )
   }
+
+  /* ---------- requests waiting on me ---------- */
+
+  // every request other people have made against my reservations, shown at the
+  // top of the calendar until I release the slot or keep it
+  const inbox = []
+  if (me) {
+    Object.entries(allReservations).forEach(([dStr, dayRes]) => {
+      dayList(dayRes).forEach((res) => {
+        if (res.name !== me || !res.requests) return
+        Object.values(res.requests).forEach((r) => inbox.push({ dStr, res, from: r.from, note: r.note }))
+      })
+    })
+    inbox.sort((a, b) => a.dStr.localeCompare(b.dStr) || a.res.start - b.res.start)
+  }
+
+  const renderInbox = () =>
+    inbox.length ? (
+      <div className="glass-card inbox">
+        <div className="inbox-head">Couch requests</div>
+        {inbox.map((item) => (
+          <div key={`${item.dStr}-${item.res.key}-${item.from}`} className="inbox-item">
+            <Avatar name={item.from} size={30} />
+            <div className="res-main">
+              <span className="res-name">{item.from} wants the couch</span>
+              <div className="res-time">
+                {fmtDay(item.dStr)} · {rangeLabel(item.res.start, item.res.end)}
+              </div>
+              {item.note ? <div className="res-detail">“{item.note}”</div> : null}
+              <div className="inbox-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() =>
+                    handleDelete(
+                      item.dStr,
+                      item.res.key,
+                      `Release the couch to ${item.from}? Your reservation will be deleted.`
+                    )
+                  }
+                >
+                  Release it
+                </button>
+                <button type="button" className="chip" onClick={() => dropRequest(item.dStr, item.res.key, item.from)}>
+                  Keep it
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : null
 
   /* ---------- day ---------- */
 
@@ -1161,7 +1315,10 @@ export default function App() {
             <p className="loading-msg">Syncing with the apartment…</p>
           </div>
         ) : tab === 'calendar' ? (
-          calMode === 'day' ? renderDay() : calMode === 'week' ? renderWeek() : renderMonth()
+          <>
+            {renderInbox()}
+            {calMode === 'day' ? renderDay() : calMode === 'week' ? renderWeek() : renderMonth()}
+          </>
         ) : tab === 'roommates' ? (
           renderRoommates()
         ) : (
@@ -1191,6 +1348,7 @@ export default function App() {
             onClick={() => setTab(t.key)}
           >
             <TabIcon kind={t.key} active={tab === t.key} />
+            {t.key === 'calendar' && inbox.length ? <i className="tab-badge" aria-label="Requests waiting" /> : null}
             <span>{t.label}</span>
           </button>
         ))}

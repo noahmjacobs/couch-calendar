@@ -411,6 +411,117 @@ html {
   font-weight: 600;
   cursor: pointer;
 }
+.res-delete.ask {
+  background: rgba(10, 132, 255, 0.14);
+  color: var(--accent);
+}
+
+/* ---- release requests ---- */
+
+.req-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.req-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+.req-item strong {
+  color: var(--ink);
+}
+.req-sent {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.req-link {
+  min-height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.req-form {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.req-input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.req-input:focus {
+  outline: none;
+}
+.req-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.req-actions .res-delete {
+  margin-top: 0;
+}
+.inbox {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inbox-head {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pink-ink);
+}
+.inbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.inbox-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.inbox-actions .chip {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 9px);
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--pink);
+  box-shadow: 0 0 0 2px var(--tabbar-solid);
+}
 
 .free-row {
   display: flex;
@@ -877,6 +988,7 @@ html {
   box-shadow: var(--glass-shadow);
 }
 .tab {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
