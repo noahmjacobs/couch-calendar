@@ -1,9 +1,15 @@
 {
-  "name": "449 Boyos",
-  "short_name": "Couch",
+  "name": "Couch App",
+  "short_name": "Couch App",
   "description": "One couch. Five roommates. Book it before someone else does.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "background_color": "#0b0f18",
+  "theme_color": "#0b0f18",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
 }

@@ -173,7 +173,7 @@ const TabIcon = ({ kind, active }) => {
   const s = active ? 'var(--accent)' : 'var(--tab-idle)'
   if (kind === 'calendar')
     return (
-      <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
+      <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
         <rect x="3.5" y="5" width="19" height="17" rx="4.5" fill="none" stroke={s} strokeWidth="1.8" />
         <path d="M3.5 10h19" stroke={s} strokeWidth="1.8" />
         <circle cx="9" cy="15.5" r="1.6" fill={s} />
@@ -182,14 +182,14 @@ const TabIcon = ({ kind, active }) => {
     )
   if (kind === 'roommates')
     return (
-      <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
+      <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
         <circle cx="10" cy="10" r="4.2" fill="none" stroke={s} strokeWidth="1.8" />
         <circle cx="17.5" cy="12" r="3.2" fill="none" stroke={s} strokeWidth="1.8" />
         <path d="M3.5 21.5c1.4-3.4 4-5 6.5-5s5.1 1.6 6.5 5" fill="none" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
   return (
-    <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
+    <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
       <path d="M4 8h18M4 13h18M4 18h18" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="9" cy="8" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
       <circle cx="17" cy="18" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
@@ -248,6 +248,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [openRes, setOpenRes] = useState(null)
   const [openRm, setOpenRm] = useState(null)
+  const [chromeHidden, setChromeHidden] = useState(false)
+  const lastScroll = useRef(0)
+  const scrollRun = useRef(0)
 
   const [me, setMe] = useState(() => load('couch.me', ''))
   const [partner, setPartner] = useState(() => load('couch.partner', ''))
@@ -308,6 +311,26 @@ export default function App() {
       }),
     [weekStart.getTime()]
   )
+
+  // scrolling down gets the bar and the button out of the way; scrolling up,
+  // or reaching the top, brings them back. Distance is accumulated per run
+  // rather than judged per event, since a slow drag fires many tiny deltas that
+  // would each fall under a threshold and never add up to anything.
+  const onBodyScroll = (e) => {
+    const y = e.currentTarget.scrollTop
+    const dy = y - lastScroll.current
+    lastScroll.current = y
+    if (y < 24) {
+      scrollRun.current = 0
+      setChromeHidden(false)
+      return
+    }
+    if (!dy) return
+    if (dy > 0 !== scrollRun.current > 0) scrollRun.current = 0
+    scrollRun.current += dy
+    if (scrollRun.current > 40) setChromeHidden(true)
+    else if (scrollRun.current < -40) setChromeHidden(false)
+  }
 
   const navigate = (dir) => {
     const d = new Date(anchor)
@@ -988,7 +1011,7 @@ export default function App() {
         ) : null}
       </header>
 
-      <main className="app-body">
+      <main className="app-body" onScroll={onBodyScroll}>
         {loading ? (
           <div className="stack">
             {[0, 1, 2, 3].map((i) => (
@@ -1012,7 +1035,11 @@ export default function App() {
       </main>
 
       {tab === 'calendar' && !loading ? (
-        <button type="button" className="fab" onClick={() => openSheet(anchor, 19 * 60)}>
+        <button
+          type="button"
+          className={`fab${chromeHidden ? ' hidden' : ''}`}
+          onClick={() => openSheet(anchor, 19 * 60)}
+        >
           <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
             <path d="M7.5 1.5v12M1.5 7.5h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
@@ -1020,7 +1047,7 @@ export default function App() {
         </button>
       ) : null}
 
-      <nav className="tabbar">
+      <nav className={`tabbar${chromeHidden ? ' hidden' : ''}`}>
         {[
           { key: 'calendar', label: 'Calendar' },
           { key: 'roommates', label: 'Roommates' },
@@ -1030,7 +1057,10 @@ export default function App() {
             key={t.key}
             type="button"
             className={`tab${tab === t.key ? ' on' : ''}`}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setChromeHidden(false)
+              setTab(t.key)
+            }}
           >
             <TabIcon kind={t.key} active={tab === t.key} />
             <span>{t.label}</span>
