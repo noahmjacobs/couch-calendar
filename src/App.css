@@ -268,7 +268,14 @@ html {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 8px 20px 150px;
+  /* bottom clearance is the floating bar (10px inset + ~56px) plus a little air,
+     on top of the home indicator inset. The old flat 150px ignored the inset,
+     which left a dead stretch under short lists and not enough under the Reserve
+     button on a real phone. */
+  padding: 8px 20px calc(env(safe-area-inset-bottom, 0px) + 82px);
+}
+.app-body.with-fab {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 152px);
 }
 .stack {
   display: flex;
@@ -819,15 +826,9 @@ html {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.28s ease, opacity 0.2s ease;
 }
 .fab:active {
   transform: translateX(-50%) scale(0.96);
-}
-.fab.hidden {
-  transform: translateX(-50%) translateY(220%);
-  opacity: 0;
-  pointer-events: none;
 }
 
 .tabbar {
@@ -848,10 +849,6 @@ html {
   backdrop-filter: blur(50px) saturate(180%);
   -webkit-backdrop-filter: blur(50px) saturate(180%);
   box-shadow: var(--glass-shadow);
-  transition: transform 0.28s ease;
-}
-.tabbar.hidden {
-  transform: translateY(calc(100% + 60px));
 }
 .tab {
   flex: 1;

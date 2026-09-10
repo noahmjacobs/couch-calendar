@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { db } from './firebase'
 import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
@@ -248,12 +248,26 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [openRes, setOpenRes] = useState(null)
   const [openRm, setOpenRm] = useState(null)
-  const [chromeHidden, setChromeHidden] = useState(false)
-  const lastScroll = useRef(0)
-  const scrollRun = useRef(0)
 
   const [me, setMe] = useState(() => load('couch.me', ''))
-  const [partner, setPartner] = useState(() => load('couch.partner', ''))
+  // partners are keyed by roommate, so switching "Your name" switches partner too
+  const [partners, setPartners] = useState(() => {
+    try {
+      const raw = localStorage.getItem('couch.partners')
+      const map = raw ? JSON.parse(raw) : {}
+      // one-time carry-over from when a single partner was shared by everyone
+      const legacy = localStorage.getItem('couch.partner')
+      const legacyMe = localStorage.getItem('couch.me')
+      if (legacy && legacyMe && map[legacyMe] == null) map[legacyMe] = legacy
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+  const partner = me ? partners[me] || '' : ''
+  const setPartner = (v) => {
+    if (me) setPartners((prev) => ({ ...prev, [me]: v }))
+  }
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
 
   const [sheet, setSheet] = useState(null) // {day, hour, endHour, type, guestName, details}
@@ -296,9 +310,10 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('couch.me', me)
-      localStorage.setItem('couch.partner', partner)
+      localStorage.setItem('couch.partners', JSON.stringify(partners))
+      localStorage.removeItem('couch.partner')
     } catch {}
-  }, [me, partner])
+  }, [me, partners])
 
   const todayKey = dateKey(new Date())
   const weekStart = mondayOf(anchor)
@@ -311,26 +326,6 @@ export default function App() {
       }),
     [weekStart.getTime()]
   )
-
-  // scrolling down gets the bar and the button out of the way; scrolling up,
-  // or reaching the top, brings them back. Distance is accumulated per run
-  // rather than judged per event, since a slow drag fires many tiny deltas that
-  // would each fall under a threshold and never add up to anything.
-  const onBodyScroll = (e) => {
-    const y = e.currentTarget.scrollTop
-    const dy = y - lastScroll.current
-    lastScroll.current = y
-    if (y < 24) {
-      scrollRun.current = 0
-      setChromeHidden(false)
-      return
-    }
-    if (!dy) return
-    if (dy > 0 !== scrollRun.current > 0) scrollRun.current = 0
-    scrollRun.current += dy
-    if (scrollRun.current > 40) setChromeHidden(true)
-    else if (scrollRun.current < -40) setChromeHidden(false)
-  }
 
   const navigate = (dir) => {
     const d = new Date(anchor)
@@ -732,15 +727,16 @@ export default function App() {
             <input
               className="row-input"
               type="text"
-              placeholder="Optional"
+              placeholder={me ? 'Optional' : 'Pick your name first'}
               value={partner}
+              disabled={!me}
               onChange={(e) => setPartner(e.target.value)}
             />
           </div>
         </div>
         <p className="footnote">
-          Set a partner and their name fills in automatically when you book a date. Leave it empty and you'll be
-          asked each time.
+          Saved for whoever is picked above. Set a partner and their name fills in automatically when you book a
+          date. Leave it empty and you'll be asked each time.
         </p>
       </div>
 
@@ -1011,7 +1007,7 @@ export default function App() {
         ) : null}
       </header>
 
-      <main className="app-body" onScroll={onBodyScroll}>
+      <main className={`app-body${tab === 'calendar' ? ' with-fab' : ''}`}>
         {loading ? (
           <div className="stack">
             {[0, 1, 2, 3].map((i) => (
@@ -1035,11 +1031,7 @@ export default function App() {
       </main>
 
       {tab === 'calendar' && !loading ? (
-        <button
-          type="button"
-          className={`fab${chromeHidden ? ' hidden' : ''}`}
-          onClick={() => openSheet(anchor, 19 * 60)}
-        >
+        <button type="button" className="fab" onClick={() => openSheet(anchor, 19 * 60)}>
           <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
             <path d="M7.5 1.5v12M1.5 7.5h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
@@ -1047,7 +1039,7 @@ export default function App() {
         </button>
       ) : null}
 
-      <nav className={`tabbar${chromeHidden ? ' hidden' : ''}`}>
+      <nav className="tabbar">
         {[
           { key: 'calendar', label: 'Calendar' },
           { key: 'roommates', label: 'Roommates' },
@@ -1057,10 +1049,7 @@ export default function App() {
             key={t.key}
             type="button"
             className={`tab${tab === t.key ? ' on' : ''}`}
-            onClick={() => {
-              setChromeHidden(false)
-              setTab(t.key)
-            }}
+            onClick={() => setTab(t.key)}
           >
             <TabIcon kind={t.key} active={tab === t.key} />
             <span>{t.label}</span>
