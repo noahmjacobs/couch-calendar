@@ -7,7 +7,10 @@
 
 html {
   color-scheme: light dark;
-  min-height: 100dvh;
+  /* app shell: the document itself never scrolls, so iOS cannot re-decide the
+     layout viewport mid-launch. Scrolling lives in .app-body instead. */
+  height: 100%;
+  overflow: hidden;
   /* the app gradient is painted on the canvas in App.css; nothing here may set a
      background, since this file is bundled after it and would win the cascade */
 }
@@ -18,7 +21,10 @@ body {
   color: #1d1d1f;
   /* the canvas carries the gradient (App.css); body stays clear of it */
   background: transparent;
-  min-height: 100dvh;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
 }
 
 :root[data-theme='dark'] body {
@@ -33,4 +39,5 @@ body {
 
 #root {
   width: 100%;
+  height: 100%;
 }

@@ -173,7 +173,7 @@ const TabIcon = ({ kind, active }) => {
   const s = active ? 'var(--accent)' : 'var(--tab-idle)'
   if (kind === 'calendar')
     return (
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
         <rect x="3.5" y="5" width="19" height="17" rx="4.5" fill="none" stroke={s} strokeWidth="1.8" />
         <path d="M3.5 10h19" stroke={s} strokeWidth="1.8" />
         <circle cx="9" cy="15.5" r="1.6" fill={s} />
@@ -182,14 +182,14 @@ const TabIcon = ({ kind, active }) => {
     )
   if (kind === 'roommates')
     return (
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
         <circle cx="10" cy="10" r="4.2" fill="none" stroke={s} strokeWidth="1.8" />
         <circle cx="17.5" cy="12" r="3.2" fill="none" stroke={s} strokeWidth="1.8" />
         <path d="M3.5 21.5c1.4-3.4 4-5 6.5-5s5.1 1.6 6.5 5" fill="none" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
   return (
-    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+    <svg width="23" height="23" viewBox="0 0 26 26" aria-hidden="true">
       <path d="M4 8h18M4 13h18M4 18h18" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="9" cy="8" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
       <circle cx="17" cy="18" r="2.6" fill="var(--tabbar-solid)" stroke={s} strokeWidth="1.8" />
@@ -734,6 +734,8 @@ export default function App() {
           <p className="footnote inset">Automatic follows your phone's appearance setting.</p>
         </div>
       </div>
+
+      <p className="footnote build-stamp">Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</p>
     </div>
   )
 
