@@ -22,6 +22,20 @@
   --blur: blur(30px) saturate(180%);
 }
 
+/* the app background, defined once. painted on the canvas below, so it covers the
+   whole viewport including the safe areas and no gap can show through as black */
+:root {
+  --app-bg:
+    radial-gradient(120% 70% at 8% 0%, var(--bg-1) 0%, transparent 58%),
+    radial-gradient(95% 60% at 100% 12%, var(--bg-2) 0%, transparent 55%),
+    radial-gradient(90% 55% at 50% 100%, var(--bg-3) 0%, transparent 62%),
+    var(--bg);
+}
+html {
+  background: var(--app-bg);
+  background-attachment: fixed;
+}
+
 :root[data-theme='dark'] {
   --bg: #000;
   --bg-1: rgba(22, 41, 77, 1);
@@ -73,12 +87,7 @@
   display: flex;
   flex-direction: column;
   color: var(--ink);
-  background:
-    radial-gradient(120% 70% at 8% 0%, var(--bg-1) 0%, transparent 58%),
-    radial-gradient(95% 60% at 100% 12%, var(--bg-2) 0%, transparent 55%),
-    radial-gradient(90% 55% at 50% 100%, var(--bg-3) 0%, transparent 62%),
-    var(--bg);
-  background-attachment: fixed;
+  background: transparent;
 }
 
 /* ---- header ---- */
@@ -930,11 +939,11 @@
   justify-content: center;
   gap: 22px;
   padding: 0 40px;
-  background:
-    radial-gradient(110% 60% at 12% 6%, var(--bg-1) 0%, transparent 58%),
-    radial-gradient(100% 60% at 100% 18%, var(--bg-2) 0%, transparent 56%),
-    radial-gradient(100% 60% at 50% 104%, var(--bg-3) 0%, transparent 62%),
-    var(--bg);
+  /* must stay opaque to cover the tab bar underneath, and must be the SAME
+     gradient as the canvas so any coverage gap is invisible */
+  background: var(--app-bg);
+  background-attachment: fixed;
+  height: 100dvh;
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 .splash.leaving {
