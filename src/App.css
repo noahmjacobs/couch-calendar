@@ -841,7 +841,6 @@
   border-radius: 14px;
   background: var(--fill);
   overflow: hidden;
-  touch-action: none;
 }
 .bar-taken {
   position: absolute;
@@ -860,19 +859,6 @@
   border-radius: 12px;
   background: rgba(10, 132, 255, 0.9);
   box-shadow: 0 6px 18px rgba(10, 132, 255, 0.35);
-  cursor: grab;
-  touch-action: none;
-}
-.bar-sel:active {
-  cursor: grabbing;
-}
-.bar-handle {
-  width: 5px;
-  height: 22px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.9);
-  cursor: ew-resize;
-  touch-action: none;
 }
 .bar-ticks {
   display: flex;
@@ -884,76 +870,52 @@
   font-weight: 500;
   color: var(--ink-3);
 }
-.bar-hint {
+.time-fields {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.time-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-strong);
+}
+.time-field span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.time-field input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 19px;
+  font-weight: 600;
+}
+.time-field input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+.time-field input:focus {
+  outline: none;
+}
+.time-clash {
   margin-top: 12px;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--ink-2);
-}
-
-/* ---- wheels (flow A) ---- */
-
-.wheels {
-  display: flex;
-  gap: 12px;
-  margin-top: 14px;
-}
-.wheel-col {
-  flex: 1;
-  min-width: 0;
-}
-.wheel-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--ink-2);
-}
-.wheel {
-  position: relative;
-  height: 170px;
-  overflow-y: auto;
-  scroll-snap-type: y mandatory;
-  /* snap items to the highlight band at 68px, not to the top of the scrollport,
-     so the snapped row is the one the band sits behind */
-  scroll-padding-top: 68px;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
-  mask-image: linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
-}
-.wheel::-webkit-scrollbar {
-  display: none;
-}
-.wheel-band {
-  position: sticky;
-  top: 68px;
-  height: 34px;
-  margin-bottom: -34px;
-  border-radius: 9px;
-  background: var(--fill);
-  pointer-events: none;
-}
-.wheel-pad {
-  height: 68px;
-}
-.wheel-item {
-  display: block;
-  width: 100%;
-  height: 34px;
-  border: none;
-  background: none;
-  color: var(--ink-3);
-  font: inherit;
-  font-size: 18px;
-  scroll-snap-align: start;
-  cursor: pointer;
-}
-.wheel-item.on {
-  color: var(--ink);
-  font-size: 20px;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--pink-ink);
 }
 
 /* ---- splash ---- */
@@ -991,7 +953,7 @@
 }
 .splash-card {
   width: 100%;
-  padding: 34px 26px 30px;
+  padding: 30px 26px;
   text-align: center;
   border: 0.5px solid var(--glass-border);
   border-radius: 34px;
@@ -1045,7 +1007,7 @@
   height: 100%;
   border-radius: 2px;
   background: var(--accent);
-  animation: splash-load 1.6s ease-out forwards;
+  animation: splash-load 3s ease-out forwards;
 }
 @keyframes splash-load {
   from {

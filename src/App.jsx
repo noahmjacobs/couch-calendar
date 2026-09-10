@@ -13,34 +13,55 @@ const ROOMMATES = [
 const NAMES = ROOMMATES.map((r) => r.name)
 const COLOR = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.color]))
 const INK = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.ink]))
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const DAY_END = 24
 
 const dateKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const formatHour = (hour) => {
-  if (hour === 24) return '12:00 AM'
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  return `${hour % 12 || 12}:00 ${ampm}`
-}
-const shortHour = (hour) => {
-  if (hour === 24) return '12 AM'
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  return `${hour % 12 || 12} ${ampm}`
-}
-const rangeLabel = (a, b) => {
-  const sameHalf = (a < 12) === (b < 12 || b === 24)
-  return sameHalf ? `${shortHour(a).replace(/ (AM|PM)/, '')} – ${shortHour(b)}` : `${shortHour(a)} – ${shortHour(b)}`
-}
-const resEnd = (res) => res.endHour || res.hour + 1
+// times are minutes from midnight, on a 15-minute grid.
+// records written before this stored whole hours in hour/endHour; the readers below
+// fall back to those so existing reservations keep working untouched.
+const DAY_MIN = 1440
+const STEP = 15
 
-const buildDayMap = (dayRes) => {
-  const map = {}
-  Object.values(dayRes || {}).forEach((res) => {
-    for (let h = res.hour; h < resEnd(res); h++) map[h] = res
-  })
-  return map
+const startOf = (res) => (res.startMin != null ? res.startMin : res.hour * 60)
+const endOf = (res) =>
+  res.endMin != null ? res.endMin : (res.endHour != null ? res.endHour : res.hour + 1) * 60
+
+// new records key on zero-padded minutes ("1915"); legacy ones key on the bare hour
+// ("19"), and 4 characters can never collide with 1-2
+const minKey = (min) => String(min).padStart(4, '0')
+
+const fmtMin = (min) => {
+  if (min >= DAY_MIN) return '12:00 AM'
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
+}
+const shortMin = (min) => {
+  if (min >= DAY_MIN) return '12 AM'
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  return m ? `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}` : `${h % 12 || 12} ${ampm}`
+}
+const rangeLabel = (a, b) => `${shortMin(a)} – ${shortMin(b)}`
+
+const durLabel = (min) => {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (!h) return `${m} min`
+  if (!m) return `${h} ${h === 1 ? 'hr' : 'hrs'}`
+  return `${h} ${h === 1 ? 'hr' : 'hrs'} ${m} min`
+}
+
+// <input type="time"> speaks "HH:MM"; an end of midnight comes back as 00:00
+const toTimeValue = (min) => {
+  const m = min >= DAY_MIN ? 0 : min
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+const fromTimeValue = (v) => {
+  const [h, m] = v.split(':').map(Number)
+  return h * 60 + m
 }
 
 const mondayOf = (d) => {
@@ -51,8 +72,11 @@ const mondayOf = (d) => {
   return copy
 }
 
-const sortedDay = (dayRes) =>
-  Object.values(dayRes || {}).sort((a, b) => a.hour - b.hour)
+// every reservation carries its own firebase key, so deletes never re-derive it
+const dayList = (dayRes) =>
+  Object.entries(dayRes || {})
+    .map(([key, res]) => ({ ...res, key, start: startOf(res), end: endOf(res) }))
+    .sort((a, b) => a.start - b.start)
 
 const fmtDay = (dStr) =>
   new Date(`${dStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -100,7 +124,6 @@ const Splash = ({ leaving }) => (
     </div>
     <div className="splash-card">
       <div className="splash-title">449 Boyos</div>
-      <p className="splash-sub">One couch. Five roommates. Book it before someone else does.</p>
     </div>
     <div className="splash-tag">#Nodurfing</div>
     <div className="splash-foot">
@@ -112,121 +135,22 @@ const Splash = ({ leaving }) => (
   </div>
 )
 
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+/* ---------- day overview bar (read-only) ---------- */
 
-/* ---------- flow A: inline wheel pickers ---------- */
-
-const ITEM_H = 34
-
-const Wheel = ({ values, value, onChange, label }) => {
-  const ref = useRef(null)
-  const timer = useRef(null)
-  const index = Math.max(0, values.indexOf(value))
-
-  useEffect(() => {
-    const el = ref.current
-    if (el) el.scrollTop = index * ITEM_H
-  }, [values.length])
-
-  const onScroll = () => {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      const el = ref.current
-      if (!el) return
-      const i = clamp(Math.round(el.scrollTop / ITEM_H), 0, values.length - 1)
-      el.scrollTo({ top: i * ITEM_H, behavior: 'smooth' })
-      if (values[i] !== value) onChange(values[i])
-    }, 120)
-  }
-
-  return (
-    <div className="wheel-col">
-      <span className="wheel-label">{label}</span>
-      <div className="wheel" ref={ref} onScroll={onScroll}>
-        <div className="wheel-band" />
-        <div className="wheel-pad" />
-        {values.map((v) => (
-          <button
-            key={v}
-            type="button"
-            className={`wheel-item${v === value ? ' on' : ''}`}
-            onClick={() => {
-              onChange(v)
-              ref.current?.scrollTo({ top: values.indexOf(v) * ITEM_H, behavior: 'smooth' })
-            }}
-          >
-            {formatHour(v)}
-          </button>
-        ))}
-        <div className="wheel-pad" />
-      </div>
-    </div>
-  )
-}
-
-/* ---------- flow B: draggable time bar ---------- */
-
-const TimeBar = ({ hour, endHour, blocked, onChange }) => {
-  const ref = useRef(null)
-  const drag = useRef(null)
-  const pct = (h) => `${(h / 24) * 100}%`
-
-  const hourAt = (clientX) => {
-    const r = ref.current.getBoundingClientRect()
-    return Math.round(((clientX - r.left) / r.width) * 24)
-  }
-
-  const start = (mode) => (e) => {
-    e.preventDefault()
-    // a handle sits inside the block: without this the block's own 'move'
-    // handler fires next and overwrites the resize
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { mode, from: hourAt(e.clientX), hour, endHour }
-  }
-
-  const move = (e) => {
-    const d = drag.current
-    if (!d) return
-    const delta = hourAt(e.clientX) - d.from
-    let h = d.hour
-    let en = d.endHour
-    if (d.mode === 'move') {
-      const len = d.endHour - d.hour
-      h = clamp(d.hour + delta, 0, 24 - len)
-      en = h + len
-    } else if (d.mode === 'start') {
-      h = clamp(d.hour + delta, 0, d.endHour - 1)
-    } else {
-      en = clamp(d.endHour + delta, d.hour + 1, 24)
-    }
-    if (blocked.some((b) => Math.max(h, b.start) < Math.min(en, b.end))) return
-    if (h !== hour || en !== endHour) onChange(h, en)
-  }
-
-  const end = () => {
-    drag.current = null
-  }
-
+const DayBar = ({ start, end, taken }) => {
+  const pct = (min) => `${(min / DAY_MIN) * 100}%`
   return (
     <div className="bar-wrap">
-      <div className="bar-track" ref={ref} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
-        {blocked.map((b) => (
+      <div className="bar-track">
+        {taken.map((b) => (
           <div
-            key={b.start}
+            key={b.key}
             className="bar-taken"
             style={{ left: pct(b.start), width: pct(b.end - b.start), background: `${b.color}47` }}
-            title={`${b.name} ${formatHour(b.start)} – ${formatHour(b.end)}`}
+            title={`${b.name} ${fmtMin(b.start)} – ${fmtMin(b.end)}`}
           />
         ))}
-        <div
-          className="bar-sel"
-          style={{ left: pct(hour), width: pct(endHour - hour) }}
-          onPointerDown={start('move')}
-        >
-          <span className="bar-handle" onPointerDown={start('start')} />
-          <span className="bar-handle" onPointerDown={start('end')} />
-        </div>
+        <div className="bar-sel" style={{ left: pct(start), width: pct(Math.max(end - start, 0)) }} />
       </div>
       <div className="bar-ticks">
         <span>12 AM</span>
@@ -291,14 +215,13 @@ export default function App() {
   const [me, setMe] = useState(() => load('couch.me', ''))
   const [partner, setPartner] = useState(() => load('couch.partner', ''))
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
-  const [flow, setFlow] = useState(() => load('couch.flow', 'bar')) // 'bar' | 'wheel'
 
   const [sheet, setSheet] = useState(null) // {day, hour, endHour, type, guestName, details}
   const [splash, setSplash] = useState('in') // 'in' | 'out' | 'gone'
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSplash('out'), 1500)
-    const t2 = setTimeout(() => setSplash('gone'), 2000)
+    const t1 = setTimeout(() => setSplash('out'), 3000)
+    const t2 = setTimeout(() => setSplash('gone'), 3500)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
@@ -334,9 +257,8 @@ export default function App() {
     try {
       localStorage.setItem('couch.me', me)
       localStorage.setItem('couch.partner', partner)
-      localStorage.setItem('couch.flow', flow)
     } catch {}
-  }, [me, partner, flow])
+  }, [me, partner])
 
   const todayKey = dateKey(new Date())
   const weekStart = mondayOf(anchor)
@@ -358,25 +280,16 @@ export default function App() {
     setAnchor(d)
   }
 
-  const maxEndFor = (day, startHour) => {
-    const dayRes = allReservations[dateKey(day)] || {}
-    let limit = DAY_END
-    Object.values(dayRes).forEach((res) => {
-      if (res.hour > startHour && res.hour < limit) limit = res.hour
-    })
-    return limit
-  }
-
-  const openSheet = (day, hour) => {
+  const openSheet = (day, startMin) => {
     if (!me) {
       setTab('settings')
       return
     }
-    const limit = maxEndFor(day, hour)
+    const start = Math.min(Math.round(startMin / STEP) * STEP, DAY_MIN - STEP)
     setSheet({
       day,
-      hour,
-      endHour: Math.min(hour + 2, limit),
+      start,
+      end: Math.min(start + 120, DAY_MIN),
       type: 'event',
       guestName: partner,
       details: ''
@@ -386,25 +299,29 @@ export default function App() {
   const handleReserve = async (e) => {
     e.preventDefault()
     if (!sheet) return
-    const { day, hour, endHour, type, guestName, details } = sheet
+    const { day, start, end, type, guestName, details } = sheet
+    if (end <= start) return alert('The end time has to be after the start.')
     if (type === 'date' && !guestName.trim()) return alert("Who's the date with?")
     if (type === 'event' && !details.trim()) return alert("What's the event?")
 
     const dStr = dateKey(day)
-    const dayRes = allReservations[dStr] || {}
-    const overlaps = Object.values(dayRes).some(
-      (res) => Math.max(hour, res.hour) < Math.min(endHour, resEnd(res))
+    const hit = dayList(allReservations[dStr]).find(
+      (res) => Math.max(start, res.start) < Math.min(end, res.end)
     )
-    if (overlaps) return alert('That time overlaps an existing reservation.')
+    if (hit)
+      return alert(`That overlaps ${hit.name}, ${rangeLabel(hit.start, hit.end)}. Pick another time.`)
 
     try {
-      await set(ref(db, `reservations/${dStr}/${hour}`), {
+      await set(ref(db, `reservations/${dStr}/${minKey(start)}`), {
         name: me,
         type,
         details: details.trim(),
         guestName: type === 'date' ? guestName.trim() : '',
-        hour,
-        endHour,
+        startMin: start,
+        endMin: end,
+        // kept so anything still reading the old shape sees a sane whole-hour range
+        hour: Math.floor(start / 60),
+        endHour: Math.ceil(end / 60),
         timestamp: new Date().toISOString()
       })
       setSheet(null)
@@ -413,10 +330,10 @@ export default function App() {
     }
   }
 
-  const handleDelete = async (dStr, startHour) => {
+  const handleDelete = async (dStr, key) => {
     if (!window.confirm('Delete this reservation?')) return
     try {
-      await remove(ref(db, `reservations/${dStr}/${startHour}`))
+      await remove(ref(db, `reservations/${dStr}/${key}`))
     } catch (error) {
       alert('Error deleting reservation: ' + error.message)
     }
@@ -426,7 +343,7 @@ export default function App() {
 
   const ResCard = ({ res, dStr, compact }) => {
     const mine = res.name === me
-    const id = `${dStr}-${res.hour}`
+    const id = `${dStr}-${res.key}`
     const open = openRes === id
     const showDetails = mine || open
     const detail =
@@ -446,7 +363,7 @@ export default function App() {
             <KindDot type={res.type} />
           </div>
           <div className="res-time">
-            {formatHour(res.hour)} – {formatHour(resEnd(res))}
+            {fmtMin(res.start)} – {fmtMin(res.end)}
           </div>
           {showDetails && detail ? <div className="res-detail">{detail}</div> : null}
           {!showDetails ? <div className="res-hint">Tap to see details</div> : null}
@@ -456,7 +373,7 @@ export default function App() {
               className="res-delete"
               onClick={(e) => {
                 e.stopPropagation()
-                handleDelete(dStr, res.hour)
+                handleDelete(dStr, res.key)
               }}
             >
               Delete reservation
@@ -471,28 +388,27 @@ export default function App() {
 
   const renderDay = () => {
     const dStr = dateKey(anchor)
-    const map = buildDayMap(allReservations[dStr])
+    const list = dayList(allReservations[dStr])
     const rows = []
-    let h = 0
-    while (h < 24) {
-      const res = map[h]
-      if (res) {
-        rows.push(<ResCard key={`r${h}`} res={res} dStr={dStr} />)
-        h = resEnd(res)
-      } else {
-        let end = h
-        while (end < 24 && !map[end]) end++
-        const start = h
-        rows.push(
-          <button key={`f${h}`} type="button" className="free-row" onClick={() => openSheet(anchor, start)}>
-            <span className="free-range">{rangeLabel(start, end)}</span>
-            <span className="free-line" />
-            <span className="free-word">Free</span>
-          </button>
-        )
-        h = end
-      }
-    }
+    const freeRow = (from, to) => (
+      <button
+        key={`f${from}`}
+        type="button"
+        className="free-row"
+        onClick={() => openSheet(anchor, from)}
+      >
+        <span className="free-range">{rangeLabel(from, to)}</span>
+        <span className="free-line" />
+        <span className="free-word">Free</span>
+      </button>
+    )
+    let cursor = 0
+    list.forEach((res) => {
+      if (res.start > cursor) rows.push(freeRow(cursor, res.start))
+      rows.push(<ResCard key={res.key} res={res} dStr={dStr} />)
+      cursor = Math.max(cursor, res.end)
+    })
+    if (cursor < DAY_MIN) rows.push(freeRow(cursor, DAY_MIN))
     const empty = Object.keys(allReservations[dStr] || {}).length === 0
     if (empty)
       return (
@@ -514,7 +430,7 @@ export default function App() {
 
   const renderWeek = () => {
     const groups = weekDays
-      .map((d) => ({ d, dStr: dateKey(d), rows: sortedDay(allReservations[dateKey(d)]) }))
+      .map((d) => ({ d, dStr: dateKey(d), rows: dayList(allReservations[dateKey(d)]) }))
       .filter((g) => g.rows.length)
     const freeDays = weekDays
       .filter((d) => !Object.keys(allReservations[dateKey(d)] || {}).length)
@@ -530,7 +446,7 @@ export default function App() {
             </div>
             <div className="glass-list">
               {g.rows.map((res) => (
-                <ResCard key={res.hour} res={res} dStr={g.dStr} compact />
+                <ResCard key={res.key} res={res} dStr={g.dStr} compact />
               ))}
             </div>
           </div>
@@ -560,7 +476,7 @@ export default function App() {
       return d
     })
     const selKey = dateKey(anchor)
-    const selRows = sortedDay(allReservations[selKey])
+    const selRows = dayList(allReservations[selKey])
 
     return (
       <div className="stack">
@@ -575,7 +491,7 @@ export default function App() {
               const k = dateKey(d)
               const inMonth = d.getMonth() === anchor.getMonth()
               const sel = k === selKey
-              const names = sortedDay(allReservations[k]).map((r) => r.name)
+              const names = dayList(allReservations[k]).map((r) => r.name)
               return (
                 <button
                   key={k}
@@ -601,11 +517,11 @@ export default function App() {
           {selRows.length ? (
             <div className="glass-list">
               {selRows.map((res) => (
-                <ResCard key={res.hour} res={res} dStr={selKey} compact />
+                <ResCard key={res.key} res={res} dStr={selKey} compact />
               ))}
             </div>
           ) : (
-            <button type="button" className="free-row" onClick={() => openSheet(anchor, 19)}>
+            <button type="button" className="free-row" onClick={() => openSheet(anchor, 19 * 60)}>
               <span className="free-range">All day</span>
               <span className="free-line" />
               <span className="free-word">Free</span>
@@ -632,7 +548,7 @@ export default function App() {
         } else events.push({ ...res, dateStr: dStr })
       })
     })
-    const newestFirst = (a, b) => b.dateStr.localeCompare(a.dateStr) || b.hour - a.hour
+    const newestFirst = (a, b) => b.dateStr.localeCompare(a.dateStr) || startOf(b) - startOf(a)
     return {
       name: rm,
       events: events.sort(newestFirst),
@@ -700,7 +616,7 @@ export default function App() {
                         <div key={sect.key} className="rm-sect">
                           <div className="rm-sect-head">{sect.head}</div>
                           {sect.rows.map((r) => (
-                            <div key={`${r.dateStr}-${r.hour}`} className="rm-item">
+                            <div key={`${r.dateStr}-${startOf(r)}`} className="rm-item">
                               <span className="rm-when">{fmtDay(r.dateStr)}</span>
                               <span className="rm-what">
                                 {sect.key === 'dates' ? (
@@ -712,7 +628,7 @@ export default function App() {
                                   r.details || 'No details'
                                 )}
                               </span>
-                              <span className="rm-hours">{rangeLabel(r.hour, resEnd(r))}</span>
+                              <span className="rm-hours">{rangeLabel(startOf(r), endOf(r))}</span>
                             </div>
                           ))}
                         </div>
@@ -769,23 +685,6 @@ export default function App() {
       </div>
 
       <div className="group">
-        <div className="group-label">Reserving</div>
-        <div className="glass-card">
-          <div className="segmented">
-            <button type="button" className={flow === 'bar' ? 'on' : ''} onClick={() => setFlow('bar')}>
-              Time bar
-            </button>
-            <button type="button" className={flow === 'wheel' ? 'on' : ''} onClick={() => setFlow('wheel')}>
-              Wheel
-            </button>
-          </div>
-          <p className="footnote inset">
-            Time bar: drag a block across the day. Wheel: scroll to a start and end time.
-          </p>
-        </div>
-      </div>
-
-      <div className="group">
         <div className="group-label">Appearance</div>
         <div className="glass-card">
           <div className="segmented">
@@ -806,17 +705,15 @@ export default function App() {
   const renderSheet = () => {
     if (!sheet) return null
     const dStr = dateKey(sheet.day)
-    const limit = maxEndFor(sheet.day, sheet.hour)
-    const dayMap = buildDayMap(allReservations[dStr])
-    const starts = HOURS.filter((h) => !dayMap[h])
-    const ends = Array.from({ length: limit - sheet.hour }, (_, i) => sheet.hour + 1 + i)
-    const dur = sheet.endHour - sheet.hour
-    const blocked = sortedDay(allReservations[dStr]).map((r) => ({
-      start: r.hour,
-      end: resEnd(r),
+    const dur = sheet.end - sheet.start
+    const taken = dayList(allReservations[dStr]).map((r) => ({
+      key: r.key,
+      start: r.start,
+      end: r.end,
       name: r.name,
       color: COLOR[r.name] || '#8E8E93'
     }))
+    const clash = taken.find((b) => Math.max(sheet.start, b.start) < Math.min(sheet.end, b.end))
 
     return (
       <div className="sheet-wrap" role="dialog" aria-modal="true">
@@ -843,44 +740,56 @@ export default function App() {
             <div className="glass-card">
               <div className="time-head">
                 <span className="time-big">
-                  {formatHour(sheet.hour)} – {formatHour(sheet.endHour)}
+                  {fmtMin(sheet.start)} – {fmtMin(sheet.end)}
                 </span>
-                <span className="time-dur">
-                  {dur} {dur === 1 ? 'hr' : 'hrs'}
-                </span>
+                <span className="time-dur">{dur > 0 ? durLabel(dur) : '—'}</span>
               </div>
               <div className="sheet-sub">
                 {sheet.day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
 
-              {flow === 'bar' ? (
-                <>
-                  <TimeBar
-                    hour={sheet.hour}
-                    endHour={sheet.endHour}
-                    blocked={blocked}
-                    onChange={(h, en) => setSheet((s) => ({ ...s, hour: h, endHour: en }))}
+              <DayBar start={sheet.start} end={sheet.end} taken={taken} />
+
+              <div className="time-fields">
+                <label className="time-field">
+                  <span>Starts</span>
+                  <input
+                    type="time"
+                    step="900"
+                    value={toTimeValue(sheet.start)}
+                    onChange={(e) => {
+                      if (!e.target.value) return
+                      const start = fromTimeValue(e.target.value)
+                      // moving the start carries the length with it, the way iOS Calendar does
+                      setSheet((s) => {
+                        const len = Math.max(s.end - s.start, STEP)
+                        return { ...s, start, end: Math.min(start + len, DAY_MIN) }
+                      })
+                    }}
                   />
-                  <p className="bar-hint">Drag the blue block to move it, pull either end to resize.</p>
-                </>
-              ) : (
-                <div className="wheels">
-                  <Wheel
-                    label="Starts"
-                    values={starts}
-                    value={sheet.hour}
-                    onChange={(h) =>
-                      setSheet((s) => ({ ...s, hour: h, endHour: Math.min(h + 2, maxEndFor(s.day, h)) }))
-                    }
+                </label>
+                <label className="time-field">
+                  <span>Ends</span>
+                  <input
+                    type="time"
+                    step="900"
+                    value={toTimeValue(sheet.end)}
+                    onChange={(e) => {
+                      if (!e.target.value) return
+                      const raw = fromTimeValue(e.target.value)
+                      // midnight is the end of this day, not the start of it
+                      const end = raw <= sheet.start ? DAY_MIN : raw
+                      setSheet((s) => ({ ...s, end }))
+                    }}
                   />
-                  <Wheel
-                    label="Ends"
-                    values={ends}
-                    value={sheet.endHour}
-                    onChange={(h) => setSheet((s) => ({ ...s, endHour: h }))}
-                  />
-                </div>
-              )}
+                </label>
+              </div>
+
+              {clash ? (
+                <p className="time-clash">
+                  Overlaps {clash.name}, {rangeLabel(clash.start, clash.end)}. Reserving will be refused.
+                </p>
+              ) : null}
             </div>
 
             <div className="type-tiles">
@@ -1060,7 +969,7 @@ export default function App() {
       </main>
 
       {tab === 'calendar' && !loading ? (
-        <button type="button" className="fab" onClick={() => openSheet(anchor, 19)}>
+        <button type="button" className="fab" onClick={() => openSheet(anchor, 19 * 60)}>
           <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
             <path d="M7.5 1.5v12M1.5 7.5h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
