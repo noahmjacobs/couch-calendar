@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { db } from './firebase'
 import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
@@ -112,6 +112,133 @@ const Splash = ({ leaving }) => (
   </div>
 )
 
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+
+/* ---------- flow A: inline wheel pickers ---------- */
+
+const ITEM_H = 34
+
+const Wheel = ({ values, value, onChange, label }) => {
+  const ref = useRef(null)
+  const timer = useRef(null)
+  const index = Math.max(0, values.indexOf(value))
+
+  useEffect(() => {
+    const el = ref.current
+    if (el) el.scrollTop = index * ITEM_H
+  }, [values.length])
+
+  const onScroll = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      const el = ref.current
+      if (!el) return
+      const i = clamp(Math.round(el.scrollTop / ITEM_H), 0, values.length - 1)
+      el.scrollTo({ top: i * ITEM_H, behavior: 'smooth' })
+      if (values[i] !== value) onChange(values[i])
+    }, 120)
+  }
+
+  return (
+    <div className="wheel-col">
+      <span className="wheel-label">{label}</span>
+      <div className="wheel" ref={ref} onScroll={onScroll}>
+        <div className="wheel-band" />
+        <div className="wheel-pad" />
+        {values.map((v) => (
+          <button
+            key={v}
+            type="button"
+            className={`wheel-item${v === value ? ' on' : ''}`}
+            onClick={() => {
+              onChange(v)
+              ref.current?.scrollTo({ top: values.indexOf(v) * ITEM_H, behavior: 'smooth' })
+            }}
+          >
+            {formatHour(v)}
+          </button>
+        ))}
+        <div className="wheel-pad" />
+      </div>
+    </div>
+  )
+}
+
+/* ---------- flow B: draggable time bar ---------- */
+
+const TimeBar = ({ hour, endHour, blocked, onChange }) => {
+  const ref = useRef(null)
+  const drag = useRef(null)
+  const pct = (h) => `${(h / 24) * 100}%`
+
+  const hourAt = (clientX) => {
+    const r = ref.current.getBoundingClientRect()
+    return Math.round(((clientX - r.left) / r.width) * 24)
+  }
+
+  const start = (mode) => (e) => {
+    e.preventDefault()
+    // a handle sits inside the block: without this the block's own 'move'
+    // handler fires next and overwrites the resize
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    drag.current = { mode, from: hourAt(e.clientX), hour, endHour }
+  }
+
+  const move = (e) => {
+    const d = drag.current
+    if (!d) return
+    const delta = hourAt(e.clientX) - d.from
+    let h = d.hour
+    let en = d.endHour
+    if (d.mode === 'move') {
+      const len = d.endHour - d.hour
+      h = clamp(d.hour + delta, 0, 24 - len)
+      en = h + len
+    } else if (d.mode === 'start') {
+      h = clamp(d.hour + delta, 0, d.endHour - 1)
+    } else {
+      en = clamp(d.endHour + delta, d.hour + 1, 24)
+    }
+    if (blocked.some((b) => Math.max(h, b.start) < Math.min(en, b.end))) return
+    if (h !== hour || en !== endHour) onChange(h, en)
+  }
+
+  const end = () => {
+    drag.current = null
+  }
+
+  return (
+    <div className="bar-wrap">
+      <div className="bar-track" ref={ref} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+        {blocked.map((b) => (
+          <div
+            key={b.start}
+            className="bar-taken"
+            style={{ left: pct(b.start), width: pct(b.end - b.start), background: `${b.color}47` }}
+            title={`${b.name} ${formatHour(b.start)} – ${formatHour(b.end)}`}
+          />
+        ))}
+        <div
+          className="bar-sel"
+          style={{ left: pct(hour), width: pct(endHour - hour) }}
+          onPointerDown={start('move')}
+        >
+          <span className="bar-handle" onPointerDown={start('start')} />
+          <span className="bar-handle" onPointerDown={start('end')} />
+        </div>
+      </div>
+      <div className="bar-ticks">
+        <span>12 AM</span>
+        <span>6 AM</span>
+        <span>12 PM</span>
+        <span>6 PM</span>
+        <span>12 AM</span>
+      </div>
+    </div>
+  )
+}
+
 const Chevron = () => (
   <svg className="chev" width="8" height="13" viewBox="0 0 8 13" aria-hidden="true">
     <path d="M1.5 1.5L6.5 6.5L1.5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -164,6 +291,7 @@ export default function App() {
   const [me, setMe] = useState(() => load('couch.me', ''))
   const [partner, setPartner] = useState(() => load('couch.partner', ''))
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
+  const [flow, setFlow] = useState(() => load('couch.flow', 'bar')) // 'bar' | 'wheel'
 
   const [sheet, setSheet] = useState(null) // {day, hour, endHour, type, guestName, details}
   const [splash, setSplash] = useState('in') // 'in' | 'out' | 'gone'
@@ -206,8 +334,9 @@ export default function App() {
     try {
       localStorage.setItem('couch.me', me)
       localStorage.setItem('couch.partner', partner)
+      localStorage.setItem('couch.flow', flow)
     } catch {}
-  }, [me, partner])
+  }, [me, partner, flow])
 
   const todayKey = dateKey(new Date())
   const weekStart = mondayOf(anchor)
@@ -640,6 +769,23 @@ export default function App() {
       </div>
 
       <div className="group">
+        <div className="group-label">Reserving</div>
+        <div className="glass-card">
+          <div className="segmented">
+            <button type="button" className={flow === 'bar' ? 'on' : ''} onClick={() => setFlow('bar')}>
+              Time bar
+            </button>
+            <button type="button" className={flow === 'wheel' ? 'on' : ''} onClick={() => setFlow('wheel')}>
+              Wheel
+            </button>
+          </div>
+          <p className="footnote inset">
+            Time bar: drag a block across the day. Wheel: scroll to a start and end time.
+          </p>
+        </div>
+      </div>
+
+      <div className="group">
         <div className="group-label">Appearance</div>
         <div className="glass-card">
           <div className="segmented">
@@ -659,11 +805,18 @@ export default function App() {
 
   const renderSheet = () => {
     if (!sheet) return null
+    const dStr = dateKey(sheet.day)
     const limit = maxEndFor(sheet.day, sheet.hour)
-    const dayMap = buildDayMap(allReservations[dateKey(sheet.day)])
+    const dayMap = buildDayMap(allReservations[dStr])
     const starts = HOURS.filter((h) => !dayMap[h])
     const ends = Array.from({ length: limit - sheet.hour }, (_, i) => sheet.hour + 1 + i)
     const dur = sheet.endHour - sheet.hour
+    const blocked = sortedDay(allReservations[dStr]).map((r) => ({
+      start: r.hour,
+      end: resEnd(r),
+      name: r.name,
+      color: COLOR[r.name] || '#8E8E93'
+    }))
 
     return (
       <div className="sheet-wrap" role="dialog" aria-modal="true">
@@ -699,34 +852,35 @@ export default function App() {
               <div className="sheet-sub">
                 {sheet.day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
-              <div className="pick-label">Starts</div>
-              <div className="scroller">
-                {starts.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    className={`time-chip${sheet.hour === h ? ' on' : ''}`}
-                    onClick={() =>
+
+              {flow === 'bar' ? (
+                <>
+                  <TimeBar
+                    hour={sheet.hour}
+                    endHour={sheet.endHour}
+                    blocked={blocked}
+                    onChange={(h, en) => setSheet((s) => ({ ...s, hour: h, endHour: en }))}
+                  />
+                  <p className="bar-hint">Drag the blue block to move it, pull either end to resize.</p>
+                </>
+              ) : (
+                <div className="wheels">
+                  <Wheel
+                    label="Starts"
+                    values={starts}
+                    value={sheet.hour}
+                    onChange={(h) =>
                       setSheet((s) => ({ ...s, hour: h, endHour: Math.min(h + 2, maxEndFor(s.day, h)) }))
                     }
-                  >
-                    {shortHour(h)}
-                  </button>
-                ))}
-              </div>
-              <div className="pick-label">Ends</div>
-              <div className="scroller">
-                {ends.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    className={`time-chip${sheet.endHour === h ? ' on' : ''}`}
-                    onClick={() => setSheet((s) => ({ ...s, endHour: h }))}
-                  >
-                    {shortHour(h)}
-                  </button>
-                ))}
-              </div>
+                  />
+                  <Wheel
+                    label="Ends"
+                    values={ends}
+                    value={sheet.endHour}
+                    onChange={(h) => setSheet((s) => ({ ...s, endHour: h }))}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="type-tiles">
@@ -834,7 +988,14 @@ export default function App() {
               </button>
             </div>
           ) : me ? (
-            <Avatar name={me} size={34} />
+            <button
+              type="button"
+              className="head-avatar"
+              onClick={() => setTab('settings')}
+              aria-label="Open settings"
+            >
+              <Avatar name={me} size={34} />
+            </button>
           ) : null}
         </div>
 

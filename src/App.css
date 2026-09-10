@@ -110,6 +110,23 @@
   line-height: 1.05;
   white-space: nowrap;
 }
+.head-avatar {
+  /* 44px hit target around the 34px avatar, negative margin keeps it visually put */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin: -5px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.head-avatar:active {
+  transform: scale(0.94);
+}
 .head-nav {
   display: flex;
   align-items: center;
@@ -811,6 +828,132 @@
 .tab:active {
   background: rgba(120, 120, 128, 0.22);
   transform: scale(0.94);
+}
+
+/* ---- time bar (flow B) ---- */
+
+.bar-wrap {
+  margin-top: 16px;
+}
+.bar-track {
+  position: relative;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--fill);
+  overflow: hidden;
+  touch-action: none;
+}
+.bar-taken {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 12px;
+}
+.bar-sel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: rgba(10, 132, 255, 0.9);
+  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.35);
+  cursor: grab;
+  touch-action: none;
+}
+.bar-sel:active {
+  cursor: grabbing;
+}
+.bar-handle {
+  width: 5px;
+  height: 22px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.bar-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.bar-ticks span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.bar-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+/* ---- wheels (flow A) ---- */
+
+.wheels {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.wheel-col {
+  flex: 1;
+  min-width: 0;
+}
+.wheel-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+.wheel {
+  position: relative;
+  height: 170px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  /* snap items to the highlight band at 68px, not to the top of the scrollport,
+     so the snapped row is the one the band sits behind */
+  scroll-padding-top: 68px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
+}
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+.wheel-band {
+  position: sticky;
+  top: 68px;
+  height: 34px;
+  margin-bottom: -34px;
+  border-radius: 9px;
+  background: var(--fill);
+  pointer-events: none;
+}
+.wheel-pad {
+  height: 68px;
+}
+.wheel-item {
+  display: block;
+  width: 100%;
+  height: 34px;
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 18px;
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+.wheel-item.on {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
 }
 
 /* ---- splash ---- */
