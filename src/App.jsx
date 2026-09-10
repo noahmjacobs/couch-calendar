@@ -197,9 +197,46 @@ const TabIcon = ({ kind, active }) => {
   )
 }
 
+/* iOS reports a short viewport while a standalone launch is still settling, and
+   again when the app is resumed from the switcher, which left a strip of the
+   screen uncovered until something forced a repaint. CSS units cannot see that,
+   so the height is measured here and re-measured on every event that can follow
+   a cold start. */
+const useAppHeight = () => {
+  useEffect(() => {
+    const apply = () => {
+      const cands = [
+        window.innerHeight,
+        window.visualViewport && window.visualViewport.height,
+        document.documentElement.clientHeight
+      ]
+      // screen.height does not swap with orientation on iOS, so only trust it
+      // while we are actually portrait
+      if (window.innerHeight >= window.innerWidth) cands.push(window.screen && window.screen.height)
+      const h = Math.max(...cands.filter((n) => typeof n === 'number' && n > 0))
+      if (h) document.documentElement.style.setProperty('--app-h', `${Math.ceil(h)}px`)
+    }
+    apply()
+    const raf = requestAnimationFrame(apply)
+    const settle = setTimeout(apply, 400)
+    const events = ['resize', 'orientationchange', 'pageshow', 'focus']
+    events.forEach((e) => window.addEventListener(e, apply))
+    document.addEventListener('visibilitychange', apply)
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', apply)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(settle)
+      events.forEach((e) => window.removeEventListener(e, apply))
+      document.removeEventListener('visibilitychange', apply)
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', apply)
+    }
+  }, [])
+}
+
 /* ---------- app ---------- */
 
 export default function App() {
+  useAppHeight()
   const [tab, setTab] = useState('calendar')
   const [calMode, setCalMode] = useState('day')
   const [anchor, setAnchor] = useState(() => {

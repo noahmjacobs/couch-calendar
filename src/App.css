@@ -20,6 +20,7 @@
   --pink: #ff2d55;
   --pink-ink: #c81e45;
   --blur: blur(30px) saturate(180%);
+  --bg-floor: #eef2fa;
 }
 
 /* the app background, defined once. painted on the canvas below, so it covers the
@@ -32,8 +33,10 @@
     var(--bg);
 }
 html {
-  /* solid floor only: a fixed background-attachment here is the WebKit bug */
-  background: var(--bg);
+  /* solid floor only: a fixed background-attachment here is the WebKit bug.
+     --bg-floor rather than --bg so any strip that does slip through reads as
+     the app's own dark rather than a black bar */
+  background: var(--bg-floor);
 }
 .backdrop {
   position: fixed;
@@ -44,6 +47,7 @@ html {
      leave an uncovered strip while iOS is still settling the height */
   height: 100vh;
   height: 100lvh;
+  height: var(--app-h, 100lvh);
   z-index: -1;
   background: var(--app-bg);
   pointer-events: none;
@@ -68,6 +72,7 @@ html {
   --tabbar-hair: rgba(255, 255, 255, 0.16);
   --tab-idle: rgba(235, 235, 245, 0.5);
   --pink-ink: #ff5d80;
+  --bg-floor: #071016;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,6 +95,7 @@ html {
     --tabbar-hair: rgba(255, 255, 255, 0.16);
     --tab-idle: rgba(235, 235, 245, 0.5);
     --pink-ink: #ff5d80;
+    --bg-floor: #071016;
   }
 }
 
@@ -957,6 +963,7 @@ html {
   background: var(--app-bg);
   height: 100vh;
   height: 100lvh;
+  height: var(--app-h, 100lvh);
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 .splash.leaving {
