@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, createContext, useContext } from 'react'
 import { db } from './firebase'
 import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
@@ -92,21 +92,67 @@ const load = (key, fallback) => {
 
 /* ---------- small pieces ---------- */
 
-const Avatar = ({ name, size = 36 }) => (
-  <div
-    className="avatar"
-    style={{
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-      background: COLOR[name] || '#8E8E93',
-      color: INK[name] || '#fff',
-      fontSize: Math.round(size * 0.42)
-    }}
-  >
-    {name ? name[0] : '?'}
-  </div>
-)
+// profile photos live in the shared database under profiles/{name}/photo so every
+// roommate's phone shows them; this carries the loaded map down to every Avatar
+const PhotoContext = createContext({})
+
+const PHOTO_SIZE = 160
+
+// centre-crop the chosen image to a small square JPEG, so the database entry is a
+// few KB rather than a multi-megabyte camera photo
+const squarePhoto = (file) =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const side = Math.min(img.width, img.height)
+      const c = document.createElement('canvas')
+      c.width = c.height = PHOTO_SIZE
+      c.getContext('2d').drawImage(
+        img,
+        (img.width - side) / 2,
+        (img.height - side) / 2,
+        side,
+        side,
+        0,
+        0,
+        PHOTO_SIZE,
+        PHOTO_SIZE
+      )
+      URL.revokeObjectURL(url)
+      resolve(c.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('That file could not be read as an image.'))
+    }
+    img.src = url
+  })
+
+const Avatar = ({ name, size = 36 }) => {
+  const photos = useContext(PhotoContext)
+  const photo = photos[name]
+  const color = COLOR[name] || '#8E8E93'
+  return (
+    <div
+      className="avatar"
+      role={photo ? 'img' : undefined}
+      aria-label={photo ? name : undefined}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        background: photo ? `url(${photo}) center / cover` : color,
+        color: INK[name] || '#fff',
+        fontSize: Math.round(size * 0.42),
+        // the roommate colour stays on as a ring around a photo
+        boxShadow: photo ? `0 0 0 ${size >= 34 ? 2 : 1.5}px ${color}` : undefined
+      }}
+    >
+      {photo ? null : name ? name[0] : '?'}
+    </div>
+  )
+}
 
 const KindDot = ({ type }) => (
   <span className="kind">
@@ -250,6 +296,11 @@ export default function App() {
   const [openRm, setOpenRm] = useState(null)
 
   const [me, setMe] = useState(() => load('couch.me', ''))
+  // once signed in, this phone belongs to that roommate: the name cannot be changed
+  const [locked, setLocked] = useState(() => load('couch.locked', '') === '1')
+  const [photos, setPhotos] = useState({})
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   // partners are keyed by roommate, so switching "Your name" switches partner too
   const [partners, setPartners] = useState(() => {
     try {
@@ -299,6 +350,31 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const unsubscribe = onValue(
+      ref(db, 'profiles'),
+      (snap) => {
+        const v = snap.exists() ? snap.val() : {}
+        const map = {}
+        Object.entries(v).forEach(([n, prof]) => {
+          if (prof && typeof prof.photo === 'string') map[n] = prof.photo
+        })
+        setPhotos(map)
+      },
+      (error) => {
+        console.error('Profiles error:', error)
+        setPhotoError('The database is not letting the app read profile photos yet. See the note below.')
+      }
+    )
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('couch.locked', locked ? '1' : '')
+    } catch {}
+  }, [locked])
+
+  useEffect(() => {
     const root = document.documentElement
     if (theme === 'auto') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
@@ -333,6 +409,39 @@ export default function App() {
     else if (calMode === 'week') d.setDate(d.getDate() + dir * 7)
     else d.setMonth(d.getMonth() + dir)
     setAnchor(d)
+  }
+
+  const lockIn = () => {
+    if (!me) return
+    if (!window.confirm(`Sign in as ${me} on this phone? This can't be changed afterwards.`)) return
+    setLocked(true)
+  }
+
+  const choosePhoto = async (file) => {
+    if (!file || !me) return
+    setPhotoBusy(true)
+    setPhotoError('')
+    try {
+      const dataUrl = await squarePhoto(file)
+      await set(ref(db, `profiles/${me}/photo`), dataUrl)
+    } catch (error) {
+      setPhotoError(
+        /permission/i.test(error.message || '')
+          ? 'The database refused the upload. See the note below.'
+          : error.message
+      )
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  const removePhoto = async () => {
+    if (!me || !window.confirm('Remove your profile photo?')) return
+    try {
+      await remove(ref(db, `profiles/${me}/photo`))
+    } catch (error) {
+      setPhotoError(error.message)
+    }
   }
 
   const openSheet = (day, startMin) => {
@@ -379,6 +488,8 @@ export default function App() {
         endHour: Math.ceil(end / 60),
         timestamp: new Date().toISOString()
       })
+      // a booking made as this roommate makes this phone theirs for good
+      setLocked(true)
       setSheet(null)
     } catch (error) {
       alert('Error making reservation: ' + error.message)
@@ -686,22 +797,71 @@ export default function App() {
       <div className="group">
         <div className="group-label">You</div>
         <div className="glass-list">
-          <div className="list-row column">
-            <span className="row-title">Your name</span>
-            <div className="chips">
-              {NAMES.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={`chip${me === n ? ' on' : ''}`}
-                  style={me === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
-                  onClick={() => setMe(n)}
-                >
-                  {n}
-                </button>
-              ))}
+          {locked ? (
+            <div className="list-row">
+              <Avatar name={me} size={36} />
+              <div className="res-main">
+                <span className="res-name">{me}</span>
+                <div className="res-time">Signed in on this phone</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="list-row column">
+              <span className="row-title">Your name</span>
+              <div className="chips">
+                {NAMES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`chip${me === n ? ' on' : ''}`}
+                    style={me === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
+                    onClick={() => setMe(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {me ? (
+                <button type="button" className="primary slim" onClick={lockIn}>
+                  Sign in as {me}
+                </button>
+              ) : null}
+            </div>
+          )}
+          {locked ? (
+            <div className="list-row column">
+              <span className="row-title">Profile photo</span>
+              <div className="photo-row">
+                <Avatar name={me} size={56} />
+                <div className="chips">
+                  <label className={`chip${photoBusy ? ' busy' : ''}`}>
+                    {photoBusy ? 'Uploading…' : photos[me] ? 'Change photo' : 'Choose photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      disabled={photoBusy}
+                      onChange={(e) => {
+                        choosePhoto(e.target.files && e.target.files[0])
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  {photos[me] ? (
+                    <button type="button" className="chip" onClick={removePhoto}>
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {photoError ? (
+                <p className="photo-error">
+                  {photoError} The Firebase rules need a <code>profiles</code> entry alongside{' '}
+                  <code>reservations</code>, with read and write allowed.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="list-row">
             <span className="row-title">Partner</span>
             <input
@@ -715,8 +875,9 @@ export default function App() {
           </div>
         </div>
         <p className="footnote">
-          Saved for whoever is picked above. Set a partner and their name fills in automatically when you book a
-          date. Leave it empty and you'll be asked each time.
+          {locked
+            ? 'Your partner fills in automatically when you book a date. Leave it empty to be asked each time.'
+            : 'Pick your name and sign in to make this phone yours. After that the name is fixed and you can add a photo.'}
         </p>
       </div>
 
@@ -908,6 +1069,7 @@ export default function App() {
           : anchor.getFullYear()
 
   return (
+    <PhotoContext.Provider value={photos}>
     <div className="app">
       {/* the background lives on its own fixed layer rather than as a fixed
           background-attachment, which WebKit paints at the wrong size until
@@ -1037,5 +1199,6 @@ export default function App() {
       {renderSheet()}
       {splash !== 'gone' ? <Splash leaving={splash === 'out'} /> : null}
     </div>
+    </PhotoContext.Provider>
   )
 }

@@ -690,6 +690,10 @@ html {
   gap: 8px;
 }
 .chip {
+  /* also used on a <label> wrapping a file input, so it needs its own box model */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   padding: 0 16px;
   border: 0.5px solid var(--glass-border);
@@ -703,6 +707,28 @@ html {
 }
 .chip.on {
   font-weight: 600;
+}
+.chip.busy {
+  opacity: 0.6;
+}
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.photo-error {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--pink-ink);
+}
+.photo-error code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+.primary.slim {
+  min-height: 44px;
+  margin-top: 6px;
+  font-size: 15px;
 }
 .footnote {
   padding: 0 4px;
