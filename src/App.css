@@ -20,7 +20,6 @@
   --pink: #ff2d55;
   --pink-ink: #c81e45;
   --blur: blur(30px) saturate(180%);
-  --bg-floor: #eef2fa;
 }
 
 /* the app background, defined once. painted on the canvas below, so it covers the
@@ -29,14 +28,14 @@
   --app-bg:
     radial-gradient(120% 70% at 8% 0%, var(--bg-1) 0%, transparent 58%),
     radial-gradient(95% 60% at 100% 12%, var(--bg-2) 0%, transparent 55%),
-    radial-gradient(90% 55% at 50% 100%, var(--bg-3) 0%, transparent 62%),
+    radial-gradient(90% 38% at 50% 72%, var(--bg-3) 0%, transparent 62%),
     var(--bg);
 }
 html {
   /* solid floor only: a fixed background-attachment here is the WebKit bug.
-     --bg-floor rather than --bg so any strip that does slip through reads as
-     the app's own dark rather than a black bar */
-  background: var(--bg-floor);
+     the floor is the gradient's own base colour, so an uncovered strip is
+     indistinguishable from the bottom of the design rather than a band */
+  background: var(--bg);
 }
 .backdrop {
   position: fixed;
@@ -72,7 +71,6 @@ html {
   --tabbar-hair: rgba(255, 255, 255, 0.16);
   --tab-idle: rgba(235, 235, 245, 0.5);
   --pink-ink: #ff5d80;
-  --bg-floor: #071016;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -95,8 +93,7 @@ html {
     --tabbar-hair: rgba(255, 255, 255, 0.16);
     --tab-idle: rgba(235, 235, 245, 0.5);
     --pink-ink: #ff5d80;
-    --bg-floor: #071016;
-  }
+    }
 }
 
 .app {
@@ -841,21 +838,6 @@ html {
   backdrop-filter: blur(50px) saturate(180%);
   -webkit-backdrop-filter: blur(50px) saturate(180%);
   border-top: 0.33px solid var(--tabbar-hair);
-}
-/* the bar is pinned with bottom: 0, so when iOS reports a short viewport the
-   whole bar lands above the true bottom of the screen and leaves a bare strip
-   under it. Padding cannot help: the bar itself is in the wrong place. This
-   carries its background on down past its own box, so whatever it sits on,
-   the ground continues to the bottom of the screen. */
-.tabbar::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 160px;
-  background: var(--tabbar);
-  pointer-events: none;
 }
 .tab {
   flex: 1;
