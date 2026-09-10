@@ -112,7 +112,7 @@ html {
 /* ---- header ---- */
 
 .app-head {
-  padding: calc(env(safe-area-inset-top) + 18px) 20px 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 10px;
   flex-shrink: 0;
 }
 .head-top {
@@ -793,7 +793,7 @@ html {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(env(safe-area-inset-bottom) + 92px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
   z-index: 30;
   display: flex;
   align-items: center;
@@ -825,11 +825,26 @@ html {
   display: flex;
   max-width: 560px;
   margin: 0 auto;
-  padding: 10px 24px calc(env(safe-area-inset-bottom) + 14px);
+  padding: 10px 24px calc(env(safe-area-inset-bottom, 0px) + 14px);
   background: var(--tabbar);
   backdrop-filter: blur(50px) saturate(180%);
   -webkit-backdrop-filter: blur(50px) saturate(180%);
   border-top: 0.33px solid var(--tabbar-hair);
+}
+/* the bar is pinned with bottom: 0, so when iOS reports a short viewport the
+   whole bar lands above the true bottom of the screen and leaves a bare strip
+   under it. Padding cannot help: the bar itself is in the wrong place. This
+   carries its background on down past its own box, so whatever it sits on,
+   the ground continues to the bottom of the screen. */
+.tabbar::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 160px;
+  background: var(--tabbar);
+  pointer-events: none;
 }
 .tab {
   flex: 1;
@@ -1018,7 +1033,7 @@ html {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom) + 46px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 46px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1090,7 +1105,7 @@ html {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: calc(env(safe-area-inset-top) + 14px) 18px 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 12px;
   flex-shrink: 0;
 }
 .nav-btn {
@@ -1116,7 +1131,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 6px 18px calc(env(safe-area-inset-bottom) + 28px);
+  padding: 6px 18px calc(env(safe-area-inset-bottom, 0px) + 28px);
 }
 .who-strip {
   display: flex;
