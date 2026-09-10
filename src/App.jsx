@@ -871,6 +871,10 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* the background lives on its own fixed layer rather than as a fixed
+          background-attachment, which WebKit paints at the wrong size until
+          something scrolls */}
+      <div className="backdrop" aria-hidden="true" />
       <header className="app-head">
         <div className="head-top">
           <div>

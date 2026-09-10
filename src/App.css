@@ -32,8 +32,21 @@
     var(--bg);
 }
 html {
+  /* solid floor only: a fixed background-attachment here is the WebKit bug */
+  background: var(--bg);
+}
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* lvh is the tallest the viewport gets, so this errs large and can never
+     leave an uncovered strip while iOS is still settling the height */
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
   background: var(--app-bg);
-  background-attachment: fixed;
+  pointer-events: none;
 }
 
 :root[data-theme='dark'] {
@@ -942,8 +955,8 @@ html {
   /* must stay opaque to cover the tab bar underneath, and must be the SAME
      gradient as the canvas so any coverage gap is invisible */
   background: var(--app-bg);
-  background-attachment: fixed;
-  height: 100dvh;
+  height: 100vh;
+  height: 100lvh;
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 .splash.leaving {
