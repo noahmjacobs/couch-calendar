@@ -101,7 +101,9 @@ export const initialMarket = (ipo) => ({
   closes: {},
   events: [],
   // the last day each listing had a filing; the idle clock runs from here
-  lastFiling: Object.fromEntries(NAMES.map((n) => [n, ipo]))
+  lastFiling: Object.fromEntries(NAMES.map((n) => [n, ipo])),
+  // submission ids the committee withdrew: hidden in the app, never ruled on
+  withdrawn: []
 })
 
 export const closedDays = (market) => Object.keys(market.closes).sort()
@@ -183,7 +185,13 @@ export const buildMarket = (ledger, ipo, today) => {
   let m = initialMarket(ipo)
   const byDay = {}
   ledger.forEach((f, i) => {
-    if (!f || !f.day || !f.name) return
+    if (!f) return
+    // a withdrawal names a submission and nothing else: no price, no filing
+    if (f.withdrawn) {
+      if (f.ref) m = { ...m, withdrawn: [...m.withdrawn, f.ref] }
+      return
+    }
+    if (!f.day || !f.name) return
     // a filing dated before the IPO counts on opening day
     const day = f.day < ipo ? ipo : f.day
     ;(byDay[day] = byDay[day] || []).push({ ...f, day, index: i })

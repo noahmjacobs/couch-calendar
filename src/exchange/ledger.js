@@ -28,6 +28,9 @@
 // in chronological order so the record reads top to bottom. An event that
 // involves several roommates is one filing per roommate, each with its own
 // percentage.
+//
+// A withdrawal removes a report from the app without ruling on it:
+//   { withdrawn: true, ref: '-OabcXYZ', note: 'why' }
 
 export const IPO = '2026-08-01'
 
@@ -197,5 +200,8 @@ export const LEDGER = [
     verdict: 'Same name six days later. The market now has a thesis on JAMS.',
     by: 'Couch App',
     ref: 'couch-2026-10-03-1140'
-  }
+  },
+
+  // ---- Withdrawals ----
+  { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' }
 ]

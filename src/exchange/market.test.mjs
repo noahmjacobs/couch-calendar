@@ -188,3 +188,10 @@ test('formatting helpers', () => {
   assert.equal(fmtPct(0), '0.00%')
   assert.equal(daysBetween(IPO, '2026-08-31'), 30)
 })
+
+test('a withdrawal hides a report without moving anything', () => {
+  const m = buildMarket([{ withdrawn: true, ref: 'sub-1', note: 'fake' }, { day: IPO, name: 'Noah', pct: 5 }], IPO, IPO)
+  assert.deepEqual(m.withdrawn, ['sub-1'])
+  assert.equal(m.events.length, 1)
+  assert.equal(m.live.Noah, 105)
+})

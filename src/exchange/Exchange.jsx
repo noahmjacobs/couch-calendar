@@ -1101,15 +1101,17 @@ export default function Exchange() {
     return () => clearTimeout(id)
   }, [toast])
 
-  // a submission the ledger has ruled on is filed; anything else is waiting
+  // a submission the ledger has ruled on is filed; one the committee withdrew
+  // is gone; anything else is waiting
   const filedRefs = useMemo(() => new Set(market.events.map((e) => e.ref).filter(Boolean)), [market])
+  const withdrawn = useMemo(() => new Set(market.withdrawn), [market])
   const subs = useMemo(
     () =>
       Object.entries(rawSubs || {})
         .map(([id, s]) => ({ ...s, id, filed: filedRefs.has(id) }))
-        .filter((s) => namesOf(s).length && s.status !== 'rejected')
+        .filter((s) => namesOf(s).length && s.status !== 'rejected' && !withdrawn.has(s.id))
         .sort((a, b) => (b.at || '').localeCompare(a.at || '')),
-    [rawSubs, filedRefs]
+    [rawSubs, filedRefs, withdrawn]
   )
   const waiting = subs.filter((s) => !s.filed).length
 

@@ -47,7 +47,10 @@ exchange's About tab).
    A booking for next Thursday shows up on Friday, never before.
 2. **Noah can delete a report** from the Events tab, and only Noah: the
    database rule allows a change or deletion only from the Google account
-   that holds the Noah claim. Nobody approves anything in the app.
+   that holds the Noah claim. The committee can also withdraw one, with a
+   one-line entry in the ledger (`{ withdrawn: true, ref, note }`): the
+   report disappears from the app without a ruling. Nobody approves anything
+   in the app.
 3. **At the close, Noah comes to the chat** and says "update today", with
    any corrections: "everyone was at that one", "add that it was her
    birthday", "skip the second one". The committee (Claude) reads the
