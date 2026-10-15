@@ -3,16 +3,7 @@ import { db } from './firebase'
 import { ref, onValue, set, remove } from 'firebase/database'
 import './App.css'
 
-const ROOMMATES = [
-  { name: 'Noah', color: '#0A84FF', ink: '#fff' },
-  { name: 'Bryon', color: '#30D158', ink: '#0B3D1C' },
-  { name: 'Jonas', color: '#FF9F0A', ink: '#4A2A00' },
-  { name: 'Andrew', color: '#BF5AF2', ink: '#fff' },
-  { name: 'James', color: '#FF375F', ink: '#fff' }
-]
-const NAMES = ROOMMATES.map((r) => r.name)
-const COLOR = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.color]))
-const INK = Object.fromEntries(ROOMMATES.map((r) => [r.name, r.ink]))
+import { ROOMMATES, NAMES, COLOR, INK } from './roommates'
 
 const dateKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -1046,6 +1037,24 @@ export default function App() {
             ))}
           </div>
           <p className="footnote inset">Automatic follows your phone's appearance setting.</p>
+        </div>
+      </div>
+
+      <div className="group">
+        <div className="group-label">More</div>
+        <div className="glass-list">
+          <a className="list-row rm-row" href="/exchange/">
+            <span className="xchg-mark" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path d="M2 13l4-5 3 3 4-6 3 3" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <div className="res-main">
+              <span className="res-name">449 Exchange</span>
+              <div className="res-time">The roommate stock market</div>
+            </div>
+            <Chevron />
+          </a>
         </div>
       </div>
 

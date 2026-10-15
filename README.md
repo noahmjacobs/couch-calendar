@@ -11,6 +11,12 @@ A simple shared calendar to reserve your apartment couch. No overbooking allowed
 - **Delete reservations**: Remove your own reservations anytime
 - **Mobile friendly**: Works on phones too
 
+## 📈 449 Exchange
+
+The same deploy also serves the roommate stock market at `/exchange/`. Prices
+move on events the household reports; see [EXCHANGE.md](EXCHANGE.md) for the
+rules, the impact guide, and how a filing is made.
+
 ## Setup
 
 ### 1. Install Dependencies

@@ -1418,3 +1418,21 @@ html {
 .primary:active {
   transform: scale(0.99);
 }
+
+/* ---- link out to the exchange ---- */
+
+.rm-row[href] {
+  text-decoration: none;
+  color: inherit;
+}
+.xchg-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: var(--accent);
+  color: #fff;
+}
