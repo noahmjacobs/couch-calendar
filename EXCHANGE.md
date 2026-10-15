@@ -63,8 +63,8 @@ of the same app, for roommates only.
 ## The Brindex
 
 A second index next to the BOYO 5, from the household's friend Britta.
-Once a week someone sends her the form at `/#/brindex` (the You tab and the
-market page have a "Send Britta the form" button that shares the link). The
+Once a week someone sends her the form at `/#/brindex` (the You tab has a
+"Send Britta the Brindex form" row that shares the link). The
 form is one slider per roommate, 0 to 10, an optional comment, Submit;
 under a minute.
 

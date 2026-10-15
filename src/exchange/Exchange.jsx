@@ -429,7 +429,7 @@ const AccountRow = ({ account }) =>
 
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go, waiting, insider, view, brindex, onShareBrindex }) => {
+const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
@@ -527,22 +527,12 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex, onShar
             {latest.comment ? ` · “${latest.comment}”` : ''}
             {latest.by ? ` — ${latest.by}` : ''}
           </p>
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button type="button" className="chip small" onClick={onShareBrindex}>
-              Send Britta this week's form
-            </button>
-          </div>
         </div>
       ) : insider ? (
         <div className="card tight">
           <div className="row-title">No {BRINDEX_NAME} report yet</div>
           <div className="row-sub" style={{ whiteSpace: 'normal' }}>
-            Send Britta the form once a week and the index starts moving.
-          </div>
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button type="button" className="chip small" onClick={onShareBrindex}>
-              Send Britta the form
-            </button>
+            Britta's form is on the You tab. Send it once a week and the index starts moving.
           </div>
         </div>
       ) : null}
@@ -1093,7 +1083,7 @@ const BrindexPage = ({ today, onSubmit, go, dbError }) => {
   )
 }
 
-const AboutPage = ({ theme, setTheme, onShare, account, settings }) => (
+const AboutPage = ({ theme, setTheme, onShare, onShareBrindex, account, settings }) => (
   <div className="stack">
     {account.member ? (
       <>
@@ -1195,6 +1185,15 @@ const AboutPage = ({ theme, setTheme, onShare, account, settings }) => (
         </div>
         <Chevron />
       </button>
+      {account.member ? (
+        <button type="button" className="row" onClick={onShareBrindex}>
+          <div className="row-main">
+            <div className="row-title">Send Britta the {BRINDEX_NAME} form</div>
+            <div className="row-sub">Her weekly read on the five of you, one minute</div>
+          </div>
+          <Chevron />
+        </button>
+      ) : null}
       {!account.member ? <AccountRow account={account} /> : null}
     </div>
     {account.error && !account.member ? <div className="banner">{account.error}</div> : null}
@@ -1720,9 +1719,9 @@ export default function Exchange() {
           ) : tab === 'events' ? (
             <EventsPage market={market} subs={subs} reviewer={reviewer} onDelete={removeSub} dbError={dbError} go={go} account={account} insider={insider} />
           ) : tab === 'about' ? (
-            <AboutPage theme={theme} setTheme={setTheme} onShare={share} account={account} settings={settings} />
+            <AboutPage theme={theme} setTheme={setTheme} onShare={share} onShareBrindex={shareBrindex} account={account} settings={settings} />
           ) : (
-            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} brindex={rawBrindex} onShareBrindex={shareBrindex} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} brindex={rawBrindex} />
           )}
         </main>
           </>
