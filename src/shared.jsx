@@ -89,7 +89,8 @@ export const Chevron = () => (
 
 /* ---------- splash ---------- */
 
-export const Splash = ({ leaving }) => (
+// tag: the household's line under the title, shown to roommates only
+export const Splash = ({ leaving, tag }) => (
   <div className={`splash${leaving ? ' leaving' : ''}`}>
     <div className="splash-dots">
       {ROOMMATES.map((r) => (
@@ -99,7 +100,7 @@ export const Splash = ({ leaving }) => (
     <div className="splash-card">
       <div className="splash-title">449 Boyos</div>
     </div>
-    <div className="splash-tag">#Nodurfing</div>
+    {tag ? <div className="splash-tag">{tag}</div> : null}
     <div className="splash-foot">
       <span className="splash-bar">
         <i />

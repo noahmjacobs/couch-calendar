@@ -1322,6 +1322,17 @@ export default function Exchange() {
   const insider = (DEMO && !OUTSIDER) || !!member
   const reviewer = (DEMO && !OUTSIDER) || (!!member && member.name === REVIEWER)
 
+  // the splash's second line is for roommates. Google takes a moment to say
+  // who is signed in, so a device that was a roommate's last time gets it at
+  // once; everyone else sees only the title
+  const [knownMember, setKnownMember] = useState(() => load('exchange.member', '') === '1')
+  useEffect(() => {
+    if (member === undefined) return
+    save('exchange.member', member ? '1' : '')
+    setKnownMember(!!member)
+  }, [member])
+  const splashTag = insider || (member === undefined && knownMember) ? '#Nodurfing' : null
+
   useEffect(() => {
     const t1 = setTimeout(() => setSplash('out'), 3000)
     const t2 = setTimeout(() => setSplash('gone'), 3500)
@@ -1781,7 +1792,7 @@ export default function Exchange() {
           })}
         </nav>
         {toast ? <div className="toast">{toast}</div> : null}
-        {splash !== 'gone' ? <Splash leaving={splash === 'out'} /> : null}
+        {splash !== 'gone' ? <Splash leaving={splash === 'out'} tag={splashTag} /> : null}
       </div>
     </PhotoContext.Provider>
   )
