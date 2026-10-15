@@ -297,7 +297,7 @@ const Submission = ({ s, reviewer, onDelete, filed, onName }) => {
             {cat.emoji} {cat.label}
             {s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}
           </span>
-          <span className={`badge ${filed ? 'filed' : 'pending'}`}>{filed ? 'Filed' : 'Submitted'}</span>
+          <span className={`badge ${filed ? 'filed' : 'pending'}`}>{filed ? 'Ruled' : 'Submitted'}</span>
           {s.source === 'couch' ? <span className="badge">Couch App</span> : null}
           {filed && filed.length === 1 ? <Delta pct={filed[0].pct} /> : null}
         </div>
@@ -452,7 +452,7 @@ const MarketPage = ({ market, today, go, waiting, insider, view }) => {
         <button type="button" className="row card tight" style={{ minHeight: 0 }} onClick={() => go('events')}>
           <div className="row-main">
             <div className="row-title">
-              {waiting} {waiting === 1 ? 'event' : 'events'} awaiting the committee
+              {waiting} {waiting === 1 ? 'report' : 'reports'} awaiting the committee
             </div>
             <div className="row-sub">Rulings post at the close</div>
           </div>
@@ -522,32 +522,48 @@ const MarketPage = ({ market, today, go, waiting, insider, view }) => {
 
       {insider ? (
         <>
-          <details className="group plain-group" open={events.length <= 3}>
-            <summary className="group-head">
-              <span className="group-label">Filings</span>
+          <div className="group">
+            <div className="group-head">
+              <span className="group-label">Events by roommate</span>
               <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-                {events.length} on record · tap to {events.length <= 3 ? 'hide' : 'show'}
+                {events.length} on record
               </span>
-            </summary>
-            <div className="list">
-              {events.length ? (
-                events.slice(0, 8).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
-              ) : (
-                <div className="empty">
-                  No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
-                  {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
-                </div>
-              )}
-              {events.length > 8 ? (
-                <button type="button" className="row" onClick={() => go('events')}>
-                  <div className="row-main">
-                    <div className="row-title">All {events.length} filings</div>
-                  </div>
-                  <Chevron />
-                </button>
-              ) : null}
             </div>
-          </details>
+            <div className="list">
+              {ranked.map((n) => {
+                const own = events.filter((e) => e.name === n)
+                const st = tickerStats(market, n, today)
+                const ups = own.filter((e) => e.pct > 0).length
+                const downs = own.filter((e) => e.pct < 0).length
+                return (
+                  <details key={n} className="person" open={view.picked.length === 1 && view.picked[0] === n}>
+                    <summary className="row">
+                      <Avatar name={n} size={36} />
+                      <div className="row-main">
+                        <div className="row-title">{n}</div>
+                        <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+                          {own.length ? `${own.length} ${own.length === 1 ? 'event' : 'events'} · ${ups} up, ${downs} down · last ${fmtDay(own[0].day)}` : 'No events yet'}
+                        </div>
+                      </div>
+                      <div className="col-right">
+                        <span className="price">{fmtMoney(market.live[n])}</span>
+                        <Delta pct={st.sinceIpoPct} />
+                      </div>
+                      <Chevron />
+                    </summary>
+                    <div className="person-events">
+                      {own.length ? (
+                        own.map((e) => <Filing key={e.key} e={e} showName={false} />)
+                      ) : (
+                        <div className="empty">Nothing on record for {n}. Opened at {fmtMoney(IPO_PRICE)} and has only drifted since.</div>
+                      )}
+                    </div>
+                  </details>
+                )
+              })}
+            </div>
+            <p className="footnote">Since the IPO. Tap a name for the full history; every event is on the Events tab.</p>
+          </div>
           <Report report={report} />
         </>
       ) : null}
@@ -598,7 +614,7 @@ const TickerPage = ({ market, today, name, go, insider, view }) => {
           <div className="stat-value">{fmtMoney(st.low)}</div>
         </div>
         <div className="stat">
-          <div className="stat-label">Filings</div>
+          <div className="stat-label">Events</div>
           <div className="stat-value">{st.filings}</div>
         </div>
         <div className="stat">
@@ -608,7 +624,7 @@ const TickerPage = ({ market, today, name, go, insider, view }) => {
           </div>
         </div>
         <div className="stat">
-          <div className="stat-label">Last filing</div>
+          <div className="stat-label">Last event</div>
           <div className="stat-value">{own.length ? fmtDay(own[0].day) : 'None'}</div>
         </div>
       </div>
@@ -620,10 +636,13 @@ const TickerPage = ({ market, today, name, go, insider, view }) => {
       {insider ? (
         <div className="group">
           <div className="group-head">
-            <span className="group-label">Filings</span>
+            <span className="group-label">Events</span>
+            <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+              newest first
+            </span>
           </div>
           <div className="list">
-            {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record. A clean sheet, so far.</div>}
+            {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No events on record. A clean sheet, so far.</div>}
           </div>
         </div>
       ) : null}
@@ -695,9 +714,9 @@ const EventsPage = ({ market, subs, reviewer, onDelete, dbError, go, account, in
 
       <div className="group">
         <div className="group-head">
-          <span className="group-label">Filings</span>
+          <span className="group-label">Ruled events</span>
           <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-            {events.length} on record
+            {events.length} on record · newest first
           </span>
         </div>
         {byDay.length ? (
@@ -725,7 +744,7 @@ const EventsPage = ({ market, subs, reviewer, onDelete, dbError, go, account, in
       {done.length ? (
         <details className="plain">
           <summary>
-            {done.length} filed {done.length === 1 ? 'submission' : 'submissions'}
+            {done.length} ruled {done.length === 1 ? 'report' : 'reports'}
           </summary>
           <div className="list" style={{ marginTop: 8 }}>
             {done.map((s) => (

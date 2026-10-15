@@ -194,7 +194,7 @@ export const PriceChart = ({ series, color, height = 220, title = 'Price' }) => 
             </tr>
           </thead>
           <tbody>
-            {series.map((p) => (
+            {[...series].reverse().map((p) => (
               <tr key={p.day + (p.live ? '-live' : '')}>
                 <td>
                   {fmtDay(p.day)}
@@ -351,9 +351,9 @@ export const MultiChart = ({ series, height = 240 }) => {
             </tr>
           </thead>
           <tbody>
-            {days.map((d, i) => (
-              <tr key={d + i}>
-                <td>{fmtDay(d)}</td>
+            {days.map((d, i) => i).reverse().map((i) => (
+              <tr key={days[i] + i}>
+                <td>{fmtDay(days[i])}</td>
                 {series.map((s) => (
                   <td key={s.key}>{fmtMoney(s.points[i].price)}</td>
                 ))}

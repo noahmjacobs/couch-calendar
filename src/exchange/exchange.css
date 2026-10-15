@@ -1321,3 +1321,32 @@ details.plain-group > summary::-webkit-details-marker {
   border-radius: 9px !important;
   font-size: 9px !important;
 }
+
+/* ---- events by roommate ---- */
+
+details.person > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.person > summary::-webkit-details-marker {
+  display: none;
+}
+details.person > summary .chev {
+  transition: transform 0.18s;
+}
+details[open].person > summary .chev {
+  transform: rotate(90deg);
+}
+details.person:not(:last-child) {
+  border-bottom: 0.5px solid var(--hair);
+}
+details.person > summary.row {
+  border-bottom: none;
+}
+.person-events {
+  padding: 0 0 4px;
+  background: rgba(120, 120, 128, 0.06);
+}
+.person-events .filing {
+  padding-left: 22px;
+}
