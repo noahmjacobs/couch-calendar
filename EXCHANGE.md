@@ -16,13 +16,21 @@ exchange's About tab).
 
 ## Who can see what
 
-- **The exchange is public.** Anyone with the link can watch the board and
-  report an event. No sign-in.
+- **The exchange is public, the events are not.** Anyone with the link can
+  watch the board, open a ticker and report an event, with no sign-in. The
+  latest filings, the closing report, a ticker's filings and the whole Events
+  feed are blurred for anyone who is not signed in as a roommate, with a
+  sign-in button on top. A roommate who signs in on the Events tab sees
+  everything; Noah also gets Approve and Reject.
 - **The couch calendar is roommates only.** It asks for a Google sign-in; the
   first time an account signs in it picks which roommate it is, and that
-  claim is permanent (stored under `members/{uid}`, so it follows the account
-  onto any phone). Without a sign-in the calendar shows only a sign-in screen
-  and a link to the exchange.
+  claim is permanent (stored under `members/{uid}` and `claims/{name}`, so it
+  follows the account onto any phone). Each name can be claimed exactly once,
+  so once the five have signed in, any other Google account is told the
+  calendar is not for it and pointed at the exchange. Without a sign-in the
+  calendar shows only a sign-in screen and a link to the exchange. If a
+  roommate ever needs to move to a different Google account, delete their
+  entry under `claims` in the Firebase console and they can claim again.
 - **The reviewer** is recognised the same way: on the exchange's Events tab,
   "Roommate? Sign in with Google" signs Noah in, and the Approve and Reject
   controls appear.
@@ -152,6 +160,10 @@ published in the console (Realtime Database → Rules), or with
         ".write": "auth != null && auth.uid == $uid && !data.exists()"
       }
     },
+    "claims": {
+      ".read": "auth != null",
+      "$name": { ".write": "auth != null && !data.exists() && newData.val() == auth.uid" }
+    },
     "exchange": { ".read": true, ".write": true }
   }
 }
@@ -183,7 +195,8 @@ old Couch App cannot read reservations under them.
 
 Add `?demo` to the URL (`/exchange/?demo`) to preview the board with a few
 weeks of made-up filings and submissions, with the reviewer controls on and
-no sign-in needed.
+no sign-in needed; `?demo&outsider` previews the same board the way someone
+who is not a roommate sees it.
 Demo data never touches the real ledger or database.
 
 ## Code

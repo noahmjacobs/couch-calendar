@@ -1504,3 +1504,14 @@ html {
 .chips.center {
   justify-content: center;
 }
+.gate-card .chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+  text-decoration: line-through;
+}
+.gate-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}

@@ -59,6 +59,8 @@ const COUCH_URL = import.meta.env.VITE_COUCH_URL || '/'
 /* ---------- demo data (?demo in the URL) ---------- */
 
 const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
+// ?demo&outsider previews what someone who is not a roommate sees
+const OUTSIDER = typeof location !== 'undefined' && new URLSearchParams(location.search).has('outsider')
 
 const demoData = (today) => {
   const ipo = addDays(today, -40)
@@ -258,6 +260,27 @@ const Filing = ({ e, showName = true, onName }) => (
 
 const STATUS_LABEL = { pending: 'Pending review', approved: 'Approved', filed: 'Filed', rejected: 'Rejected' }
 
+// events are for the household. Anyone else sees the shape of them and no more.
+const Blurred = ({ account, children }) => (
+  <div className="blur-wrap">
+    <div className="blurred" aria-hidden="true">
+      {children}
+    </div>
+    <div className="blur-overlay">
+      <p>{account.user ? 'Roommates only. This Google account is not a roommate.' : 'Roommates only. Sign in with Google to see the events.'}</p>
+      {account.user ? (
+        <button type="button" className="chip small" onClick={account.signOut}>
+          Sign out
+        </button>
+      ) : (
+        <button type="button" className="chip small" onClick={account.signIn} disabled={account.busy}>
+          Sign in with Google
+        </button>
+      )}
+    </div>
+  </div>
+)
+
 const Submission = ({ s, reviewer, onReview, filedEvent, onName }) => {
   const cat = CATEGORY[s.category] || CATEGORY.other
   return (
@@ -338,7 +361,7 @@ const DbBanner = ({ error }) =>
 
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go, waiting }) => {
+const MarketPage = ({ market, today, go, waiting, insider, account }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
@@ -387,7 +410,7 @@ const MarketPage = ({ market, today, go, waiting }) => {
         <p className="hero-sub">Average of the five listings. Everyone opened at {fmtMoney(IPO_PRICE)}.</p>
       </div>
 
-      {waiting ? (
+      {waiting && insider ? (
         <button type="button" className="row card tight" style={{ minHeight: 0 }} onClick={() => go('events')}>
           <div className="row-main">
             <div className="row-title">
@@ -461,21 +484,35 @@ const MarketPage = ({ market, today, go, waiting }) => {
             </button>
           ) : null}
         </div>
-        <div className="list">
-          {events.length ? (
-            events.slice(0, 3).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
-          ) : (
-            <div className="empty">
-              No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
-              {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
-              <br />
-              Something happen? Report it on the Events tab.
+        {insider ? (
+          <div className="list">
+            {events.length ? (
+              events.slice(0, 3).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
+            ) : (
+              <div className="empty">
+                No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
+                {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
+                <br />
+                Something happen? Report it on the Events tab.
+              </div>
+            )}
+          </div>
+        ) : (
+          <Blurred account={account}>
+            <div className="stack">
+              <div className="list">
+                {(events.length ? events.slice(0, 3) : []).map((e) => (
+                  <Filing key={e.key} e={e} />
+                ))}
+                {!events.length ? <div className="empty">No filings yet.</div> : null}
+              </div>
+              <Report report={report} />
             </div>
-          )}
-        </div>
+          </Blurred>
+        )}
       </div>
 
-      <Report report={report} />
+      {insider ? <Report report={report} /> : null}
 
       <p className="footnote center">
         Prices are set by the Exchange's pricing committee from events the household reports. Rulings are final.
@@ -484,7 +521,7 @@ const MarketPage = ({ market, today, go, waiting }) => {
   )
 }
 
-const TickerPage = ({ market, today, name, go }) => {
+const TickerPage = ({ market, today, name, go, insider, account }) => {
   const ch = dayChange(market, name, today)
   const st = tickerStats(market, name, today)
   const series = priceSeries(market, name, today)
@@ -545,9 +582,17 @@ const TickerPage = ({ market, today, name, go }) => {
         <div className="group-head">
           <span className="group-label">Filings</span>
         </div>
-        <div className="list">
-          {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record. A clean sheet, so far.</div>}
-        </div>
+        {insider ? (
+          <div className="list">
+            {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record. A clean sheet, so far.</div>}
+          </div>
+        ) : (
+          <Blurred account={account}>
+            <div className="list">
+              {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record.</div>}
+            </div>
+          </Blurred>
+        )}
       </div>
 
       <p className="footnote center">Report something about {name} and the committee rules on it at the close.</p>
@@ -555,7 +600,7 @@ const TickerPage = ({ market, today, name, go }) => {
   )
 }
 
-const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast, account }) => {
+const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast, account, insider }) => {
   const events = eventList(market)
   const pending = subs.filter((s) => s.status === 'pending')
   const approved = subs.filter((s) => s.status === 'approved')
@@ -591,13 +636,8 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
     }
   }
 
-  return (
-    <div className="stack">
-      <button type="button" className="primary" onClick={() => go('report')}>
-        Report an event
-      </button>
-      <DbBanner error={dbError} />
-
+  const feed = (
+    <>
       {reviewer ? (
         <div className="card tight">
           <div className="row-title">Committee desk</div>
@@ -697,6 +737,17 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
           </div>
         </details>
       ) : null}
+    </>
+  )
+
+  return (
+    <div className="stack">
+      <button type="button" className="primary" onClick={() => go('report')}>
+        Report an event
+      </button>
+      <DbBanner error={dbError} />
+
+      {insider ? feed : <Blurred account={account}>{feed}</Blurred>}
 
       <div className="list">
         {account.user && account.member ? (
@@ -852,7 +903,7 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
   )
 }
 
-const AboutPage = ({ theme, setTheme, onShare }) => (
+const AboutPage = ({ theme, setTheme, onShare, insider }) => (
   <div className="stack">
     <div className="card rules">
       <h3>How the exchange works</h3>
@@ -898,13 +949,15 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
         </div>
         <Chevron />
       </button>
-      <a className="row" href={COUCH_URL} style={{ textDecoration: 'none' }}>
-        <div className="row-main">
-          <div className="row-title">Open the Couch App</div>
-          <div className="row-sub">Roommates only</div>
-        </div>
-        <Chevron />
-      </a>
+      {insider ? (
+        <a className="row" href={COUCH_URL} style={{ textDecoration: 'none' }}>
+          <div className="row-main">
+            <div className="row-title">Open the Couch App</div>
+            <div className="row-sub">Roommates only</div>
+          </div>
+          <Chevron />
+        </a>
+      ) : null}
     </div>
 
     <p className="footnote build-stamp">449 Exchange · Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</p>
@@ -931,7 +984,9 @@ export default function Exchange() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const me = member ? member.name : ''
-  const reviewer = DEMO || (!!member && member.name === REVIEWER)
+  // a roommate sees the events; the reviewer can act on them
+  const insider = (DEMO && !OUTSIDER) || !!member
+  const reviewer = (DEMO && !OUTSIDER) || (!!member && member.name === REVIEWER)
 
   useEffect(() => {
     getRedirectResult(auth).catch((e) => setAuthError(describeAuthError(e)))
@@ -1140,15 +1195,15 @@ export default function Exchange() {
         <header className="x-head">{header}</header>
         <main className="x-body" ref={bodyRef}>
           {tickerName ? (
-            <TickerPage market={market} today={today} name={tickerName} go={go} />
+            <TickerPage market={market} today={today} name={tickerName} go={go} insider={insider} account={account} />
           ) : reporting ? (
             <ReportPage market={market} today={today} me={me} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
-            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} account={account} />
+            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} account={account} insider={insider} />
           ) : tab === 'about' ? (
-            <AboutPage theme={theme} setTheme={setTheme} onShare={share} />
+            <AboutPage theme={theme} setTheme={setTheme} onShare={share} insider={insider} />
           ) : (
-            <MarketPage market={market} today={today} go={go} waiting={waiting} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} account={account} />
           )}
         </main>
         <nav className="x-tabbar">

@@ -8,6 +8,10 @@
         ".write": "auth != null && auth.uid == $uid && !data.exists()"
       }
     },
+    "claims": {
+      ".read": "auth != null",
+      "$name": { ".write": "auth != null && !data.exists() && newData.val() == auth.uid" }
+    },
     "exchange": { ".read": true, ".write": true }
   }
 }

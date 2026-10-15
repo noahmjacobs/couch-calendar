@@ -313,6 +313,8 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const [pick, setPick] = useState('')
+  // which names are already taken, so a name can be claimed exactly once
+  const [claims, setClaims] = useState({})
   const me = member ? member.name : ''
   const locked = !!member
   const [photos, setPhotos] = useState({})
@@ -406,7 +408,15 @@ export default function App() {
         setMember(null)
       }
     )
-    return () => unsubscribe()
+    const unsubscribeClaims = onValue(
+      ref(db, 'claims'),
+      (snap) => setClaims(snap.exists() ? snap.val() : {}),
+      () => setClaims({})
+    )
+    return () => {
+      unsubscribe()
+      unsubscribeClaims()
+    }
   }, [user])
 
   // finished couch bookings become pending events on the exchange, the first
@@ -516,11 +526,15 @@ export default function App() {
     if (!window.confirm(`Sign in as ${pick}? This Google account will be ${pick} for good.`)) return
     setAuthError('')
     try {
-      await set(ref(db, `members/${user.uid}`), { name: pick, email: user.email || '', at: new Date().toISOString() })
+      // one write, two paths: the claim on the name fails if someone already holds it
+      await update(ref(db), {
+        [`members/${user.uid}`]: { name: pick, email: user.email || '', at: new Date().toISOString() },
+        [`claims/${pick}`]: user.uid
+      })
     } catch (e) {
       setAuthError(
         /permission/i.test(e.message || '')
-          ? 'The database refused the claim. The rules need a members entry (see database.rules.json).'
+          ? `${pick} is already taken, or the database rules are missing the members and claims entries.`
           : e.message
       )
     }
@@ -1348,6 +1362,20 @@ export default function App() {
                 Just here for the market? Open the 449 Exchange
               </a>
             </div>
+          ) : gate === 'claim' && NAMES.every((n) => claims[n]) ? (
+            <div className="gate-card">
+              <div className="gate-title">Roommates only</div>
+              <p className="gate-sub">
+                Every roommate has already claimed their name, so this calendar is not for {user.email}. The market is
+                open to everyone, though.
+              </p>
+              <a className="primary gate-button" href={EXCHANGE_URL}>
+                Open the 449 Exchange
+              </a>
+              <button type="button" className="gate-link" onClick={logOut}>
+                Sign out
+              </button>
+            </div>
           ) : gate === 'claim' ? (
             <div className="gate-card">
               <div className="gate-title">Who are you?</div>
@@ -1355,19 +1383,24 @@ export default function App() {
                 Signed in as {user.email}. Pick your name once: this Google account becomes that roommate for good.
               </p>
               <div className="chips center">
-                {NAMES.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`chip${pick === n ? ' on' : ''}`}
-                    style={pick === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
-                    onClick={() => setPick(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
+                {NAMES.map((n) => {
+                  const taken = !!claims[n]
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`chip${pick === n ? ' on' : ''}`}
+                      style={pick === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
+                      disabled={taken}
+                      title={taken ? 'Already claimed' : undefined}
+                      onClick={() => setPick(n)}
+                    >
+                      {n}
+                    </button>
+                  )
+                })}
               </div>
-              <button type="button" className="primary" onClick={claim} disabled={!pick}>
+              <button type="button" className="primary" onClick={claim} disabled={!pick || !!claims[pick]}>
                 {pick ? `I'm ${pick}` : 'Pick your name'}
               </button>
               {authError ? <p className="gate-error">{authError}</p> : null}
