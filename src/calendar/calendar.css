@@ -96,22 +96,22 @@ html {
     }
 }
 
-.app {
-  height: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  color: var(--ink);
-  background: transparent;
+
+
+/* ---- calendar header ---- */
+
+.x-body.with-fab {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 152px);
+}
+.head-top h1 {
+  font-size: clamp(25px, 7.6vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.9px;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
-/* ---- header ---- */
 
-.app-head {
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 10px;
-  flex-shrink: 0;
-}
 .head-top {
   display: flex;
   align-items: flex-end;
@@ -121,37 +121,15 @@ html {
 .head-top > div {
   min-width: 0;
 }
-.eyebrow {
+.cal-eyebrow {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink-2);
 }
-.app-head h1 {
-  /* scales down instead of wrapping "September 9" onto two lines on narrow phones */
-  font-size: clamp(25px, 7.6vw, 34px);
-  font-weight: 700;
-  letter-spacing: -0.9px;
-  line-height: 1.05;
-  white-space: nowrap;
-}
-.head-avatar {
-  /* 44px hit target around the 34px avatar, negative margin keeps it visually put */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  margin: -5px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-.head-avatar:active {
-  transform: scale(0.94);
-}
+
+
+
 .head-nav {
   display: flex;
   align-items: center;
@@ -261,22 +239,8 @@ html {
 
 /* ---- body ---- */
 
-.app-body {
-  flex: 1;
-  /* the only scroller in the app */
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  /* bottom clearance is the floating bar (10px inset + ~56px) plus a little air,
-     on top of the home indicator inset. The old flat 150px ignored the inset,
-     which left a dead stretch under short lists and not enough under the Reserve
-     button on a real phone. */
-  padding: 8px 20px calc(env(safe-area-inset-bottom, 0px) + 82px);
-}
-.app-body.with-fab {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 152px);
-}
+
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -512,16 +476,7 @@ html {
   padding: 0 14px;
   font-size: 14px;
 }
-.tab-badge {
-  position: absolute;
-  top: 4px;
-  left: calc(50% + 9px);
-  width: 8px;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--pink);
-  box-shadow: 0 0 0 2px var(--tabbar-solid);
-}
+
 
 .free-row {
   display: flex;
@@ -621,66 +576,17 @@ html {
 
 /* ---- roommates ---- */
 
-.lb-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-.lb-head h3 {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
-}
-.lb-month {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--pink-ink);
-}
-.lb-sub {
-  margin: 2px 0 14px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.lb-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.lb-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 0.5px solid transparent;
-  border-radius: 14px;
-  background: rgba(120, 120, 128, 0.1);
-}
-.lb-row.leader {
-  background: rgba(255, 45, 85, 0.12);
-  border-color: rgba(255, 45, 85, 0.28);
-}
-.lb-rank {
-  min-width: 16px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink-2);
-}
-.lb-row.leader .lb-rank,
-.lb-row.leader .lb-count {
-  color: var(--pink-ink);
-}
-.lb-name {
-  flex: 1;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-}
-.lb-count {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink-2);
-}
+
+
+
+
+
+
+
+
+
+
+
 
 .list-row {
   display: flex;
@@ -695,11 +601,11 @@ html {
   align-items: stretch;
   gap: 10px;
 }
-.row-title {
+.field-title {
   font-size: 17px;
   font-weight: 500;
 }
-.row-title.narrow {
+.field-title.narrow {
   width: 64px;
 }
 .row-input {
@@ -712,7 +618,7 @@ html {
   font-size: 17px;
   text-align: right;
 }
-.list-row .row-title.narrow + .row-input {
+.list-row .field-title.narrow + .row-input {
   text-align: left;
 }
 .row-input::placeholder {
@@ -732,69 +638,18 @@ html {
 
 /* ---- expandable roommate log ---- */
 
-.rm-row {
-  width: 100%;
-  border: none;
-  border-bottom: 0.5px solid var(--hair);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.rm-row.open .chev {
-  transform: rotate(90deg);
-}
-.rm-row:active {
-  background: rgba(120, 120, 128, 0.16);
-}
-.rm-detail {
-  padding: 4px 16px 14px 64px;
-  border-bottom: 0.5px solid var(--hair);
-}
-.glass-list > .rm-block:last-child > .rm-row,
-.glass-list > .rm-block:last-child > .rm-detail {
-  border-bottom: none;
-}
-.rm-sect + .rm-sect {
-  margin-top: 12px;
-}
-.rm-sect-head {
-  padding-bottom: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.rm-item {
-  display: grid;
-  grid-template-columns: 50px 1fr auto;
-  gap: 10px;
-  align-items: baseline;
-  padding: 4px 0;
-  font-size: 14px;
-  line-height: 1.35;
-}
-.rm-when {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-.rm-what {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.rm-hours {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-.rm-empty {
-  font-size: 14px;
-  color: var(--ink-2);
-}
+
+
+
+
+
+
+
+
+
+
+
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -859,7 +714,7 @@ html {
 
 /* ---- states ---- */
 
-.empty {
+.cal-empty {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -869,7 +724,7 @@ html {
   padding: 80px 26px;
   text-align: center;
 }
-.empty-badge {
+.cal-empty-badge {
   width: 64px;
   height: 64px;
   display: flex;
@@ -882,18 +737,18 @@ html {
   -webkit-backdrop-filter: var(--blur);
   box-shadow: var(--glass-shadow);
 }
-.empty-ring {
+.cal-empty-ring {
   width: 22px;
   height: 22px;
   border: 2px solid var(--ink-3);
   border-radius: 11px;
 }
-.empty-title {
+.cal-empty-title {
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.3px;
 }
-.empty-sub {
+.cal-empty-sub {
   font-size: 15px;
   line-height: 1.4;
   color: var(--ink-2);
@@ -968,52 +823,10 @@ html {
   transform: translateX(-50%) scale(0.96);
 }
 
-.tabbar {
-  /* floating glass pill, inset from the edges and sitting above the home
-     indicator, in the same language as the cards and the segmented control */
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  z-index: 40;
-  display: flex;
-  max-width: 528px;
-  margin: 0 auto;
-  padding: 6px 10px;
-  border: 0.5px solid var(--glass-border);
-  border-radius: 30px;
-  background: var(--tabbar);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
-  box-shadow: var(--glass-shadow);
-}
-.tab {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  min-height: 44px;
-  padding: 1px 0;
-  border: none;
-  border-radius: 22px;
-  background: none;
-  color: var(--tab-idle);
-  font: inherit;
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.18s, transform 0.12s;
-}
-.tab.on {
-  color: var(--accent);
-  font-weight: 600;
-}
-.tab:active {
-  background: rgba(120, 120, 128, 0.22);
-  transform: scale(0.94);
-}
+
+
+
+
 
 /* ---- time bar (flow B) ---- */
 
@@ -1421,27 +1234,20 @@ html {
 
 /* ---- link out to the exchange ---- */
 
-.rm-row[href] {
-  text-decoration: none;
-  color: inherit;
-}
-.xchg-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 18px;
-  background: var(--accent);
-  color: #fff;
-}
+
+
 
 /* ---- sign-in gate ---- */
 
 .gate {
   position: fixed;
   inset: 0;
+}
+.gate.inline {
+  position: static;
+  padding: 28px 0;
+}
+.gate-hidden {
   display: flex;
   align-items: center;
   justify-content: center;

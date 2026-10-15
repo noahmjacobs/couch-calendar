@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { db, auth } from '../firebase'
-import { ref, onValue, push, remove } from 'firebase/database'
+import { ref, onValue, push, remove, set, get, update } from 'firebase/database'
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth'
-import { NAMES, COLOR, INK } from '../roommates.js'
+import { ROOMMATES, NAMES, COLOR, INK } from '../roommates.js'
+import { PhotoContext, Avatar, Chevron, Splash, useAppHeight, squarePhoto, describeAuthError, load, save } from '../shared.jsx'
+import Calendar, { countRequests } from '../calendar/Calendar.jsx'
 import { IPO, LEDGER } from './ledger.js'
 import {
   TICKER,
@@ -35,18 +37,6 @@ import { Sparkline, PriceChart, MultiChart } from './charts.jsx'
 // the Couch App. The committee (Claude) rules on what the reviewer approves.
 const REVIEWER = 'Noah'
 
-// where the Couch App lives. On a shared domain it is the root; when the
-// exchange runs on its own Railway service, VITE_COUCH_URL points across.
-const COUCH_URL = import.meta.env.VITE_COUCH_URL || '/'
-
-const describeAuthError = (e) => {
-  const code = (e && e.code) || ''
-  if (code === 'auth/operation-not-allowed') return 'Google sign-in is not switched on in Firebase yet.'
-  if (code === 'auth/unauthorized-domain') return 'This address is not on the Firebase authorized domains list yet.'
-  if (code === 'auth/popup-closed-by-user') return 'The sign-in window was closed before finishing.'
-  if (code === 'auth/network-request-failed') return 'No connection. Try again in a moment.'
-  return (e && e.message) || 'Sign-in failed.'
-}
 
 /* ---------- demo data (?demo in the URL; add &outsider for the public view) ---------- */
 
@@ -87,20 +77,6 @@ const demoData = (today) => {
 }
 
 /* ---------- small hooks ---------- */
-
-const load = (key, fallback) => {
-  try {
-    const v = localStorage.getItem(key)
-    return v === null ? fallback : v
-  } catch {
-    return fallback
-  }
-}
-const save = (key, value) => {
-  try {
-    localStorage.setItem(key, value)
-  } catch {}
-}
 
 const parseHash = () => {
   const raw = location.hash.replace(/^#\/?/, '')
@@ -176,32 +152,6 @@ const useChartView = (key) => {
 
 /* ---------- pieces ---------- */
 
-const PhotoContext = createContext({})
-
-const Avatar = ({ name, size = 36 }) => {
-  const photos = useContext(PhotoContext)
-  const photo = photos[name]
-  const color = COLOR[name] || '#8E8E93'
-  return (
-    <div
-      className="avatar"
-      role={photo ? 'img' : undefined}
-      aria-label={photo ? name : undefined}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        background: photo ? `url(${photo}) center / cover` : color,
-        color: INK[name] || '#fff',
-        fontSize: Math.round(size * 0.42),
-        boxShadow: photo ? `0 0 0 ${size >= 34 ? 2 : 1.5}px ${color}` : undefined
-      }}
-    >
-      {photo ? null : name ? name[0] : '?'}
-    </div>
-  )
-}
-
 const Delta = ({ pct, abs, big }) => {
   const dir = pct > 0 ? 'up' : pct < 0 ? 'down' : ''
   return (
@@ -211,12 +161,6 @@ const Delta = ({ pct, abs, big }) => {
     </span>
   )
 }
-
-const Chevron = () => (
-  <svg className="chev" width="8" height="13" viewBox="0 0 8 13" aria-hidden="true">
-    <path d="M1.5 1.5L6.5 6.5L1.5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
 
 const BackIcon = () => (
   <svg width="9" height="15" viewBox="0 0 9 15" aria-hidden="true">
@@ -238,6 +182,15 @@ const TabIcon = ({ kind, active }) => {
       <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
         <rect x="5" y="3.5" width="16" height="19" rx="3.5" fill="none" stroke={s} strokeWidth="1.8" />
         <path d="M9 9.5h8M9 13.5h8M9 17.5h5" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  if (kind === 'calendar')
+    return (
+      <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
+        <rect x="3.5" y="5" width="19" height="17" rx="4.5" fill="none" stroke={s} strokeWidth="1.8" />
+        <path d="M3.5 10h19" stroke={s} strokeWidth="1.8" />
+        <circle cx="9" cy="15.5" r="1.6" fill={s} />
+        <circle cx="17" cy="15.5" r="1.6" fill={s} />
       </svg>
     )
   return (
@@ -918,8 +871,82 @@ const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) =
   )
 }
 
-const AboutPage = ({ theme, setTheme, onShare, insider }) => (
+const AboutPage = ({ theme, setTheme, onShare, account, settings }) => (
   <div className="stack">
+    {account.member ? (
+      <>
+        <div className="group">
+          <div className="group-head">
+            <span className="group-label">You</span>
+          </div>
+          <div className="list">
+            <div className="row">
+              <Avatar name={account.member.name} size={36} />
+              <div className="row-main">
+                <div className="row-title">{account.member.name}</div>
+                <div className="row-sub">{account.user && account.user.email ? account.user.email : 'Signed in with Google'}</div>
+              </div>
+              <button type="button" className="chip small" onClick={account.signOut}>
+                Sign out
+              </button>
+            </div>
+            <div className="row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 10 }}>
+              <div className="row-title">Profile photo</div>
+              <div className="photo-row">
+                <Avatar name={account.member.name} size={56} />
+                <div className="chips">
+                  <label className={`chip${settings.photoBusy ? ' busy' : ''}`}>
+                    {settings.photoBusy ? 'Uploading…' : settings.hasPhoto ? 'Change photo' : 'Choose photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      disabled={settings.photoBusy}
+                      onChange={(e) => {
+                        settings.choosePhoto(e.target.files && e.target.files[0])
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                  {settings.hasPhoto ? (
+                    <button type="button" className="chip" onClick={settings.removePhoto}>
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {settings.photoError ? <p className="photo-error">{settings.photoError}</p> : null}
+            </div>
+            <div className="row">
+              <div className="row-title" style={{ flexShrink: 0 }}>
+                Partner
+              </div>
+              <input className="row-input" type="text" placeholder="Optional" value={settings.partner} onChange={(e) => settings.setPartner(e.target.value)} />
+            </div>
+          </div>
+          <p className="footnote">Your partner fills in automatically when you book a date on the calendar. Leave it empty to be asked each time.</p>
+        </div>
+
+        <div className="group">
+          <div className="group-head">
+            <span className="group-label">Appearance</span>
+          </div>
+          <div className="card">
+            <div className="segmented">
+              {['light', 'dark', 'auto'].map((t) => (
+                <button key={t} type="button" className={theme === t ? 'on' : ''} onClick={() => setTheme(t)}>
+                  {t === 'auto' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            <p className="footnote" style={{ paddingTop: 12 }}>
+              Automatic follows your phone's appearance setting.
+            </p>
+          </div>
+        </div>
+      </>
+    ) : null}
+
     <div className="card rules">
       <h3>How the exchange works</h3>
       <p>
@@ -938,24 +965,6 @@ const AboutPage = ({ theme, setTheme, onShare, insider }) => (
       </p>
     </div>
 
-    <div className="group">
-      <div className="group-head">
-        <span className="group-label">Appearance</span>
-      </div>
-      <div className="card">
-        <div className="segmented">
-          {['light', 'dark', 'auto'].map((t) => (
-            <button key={t} type="button" className={theme === t ? 'on' : ''} onClick={() => setTheme(t)}>
-              {t === 'auto' ? 'Automatic' : t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-        <p className="footnote" style={{ paddingTop: 12 }}>
-          Automatic follows your phone's appearance setting.
-        </p>
-      </div>
-    </div>
-
     <div className="list">
       <button type="button" className="row" onClick={onShare}>
         <div className="row-main">
@@ -964,27 +973,95 @@ const AboutPage = ({ theme, setTheme, onShare, insider }) => (
         </div>
         <Chevron />
       </button>
-      {insider ? (
-        <a className="row" href={COUCH_URL} style={{ textDecoration: 'none' }}>
-          <div className="row-main">
-            <div className="row-title">Open the Couch App</div>
-            <div className="row-sub">Roommates only</div>
-          </div>
-          <Chevron />
-        </a>
-      ) : null}
+      {!account.member ? <AccountRow account={account} /> : null}
     </div>
+    {account.error && !account.member ? <div className="banner">{account.error}</div> : null}
 
-    <p className="footnote build-stamp">449 Exchange · Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</p>
+    <p className="footnote build-stamp">449 Boyos · Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</p>
   </div>
 )
+
+// the calendar's door: sign in, claim a name once, or be told it is not for you
+const CalendarGate = ({ account, claims, pick, setPick, onClaim }) => {
+  const { user } = account
+  if (user === undefined || (user && account.member === undefined))
+    return <div className="empty">One moment…</div>
+  if (!user)
+    return (
+      <div className="gate inline">
+        <div className="gate-card">
+          <div className="splash-dots">
+            {ROOMMATES.map((r) => (
+              <i key={r.name} className="dot big" style={{ background: r.color }} />
+            ))}
+          </div>
+          <div className="gate-title">Roommates only</div>
+          <p className="gate-sub">The couch calendar is for the five of us. Sign in with Google to open it.</p>
+          <button type="button" className="primary" onClick={account.signIn} disabled={account.busy}>
+            {account.busy ? 'Opening Google…' : 'Sign in with Google'}
+          </button>
+          {account.error ? <p className="gate-error">{account.error}</p> : null}
+        </div>
+      </div>
+    )
+  if (NAMES.every((n) => claims[n]))
+    return (
+      <div className="gate inline">
+        <div className="gate-card">
+          <div className="gate-title">Roommates only</div>
+          <p className="gate-sub">
+            Every roommate has already claimed their name, so the calendar is not for {user.email}. The market is open
+            to everyone, though.
+          </p>
+          <button type="button" className="gate-link" onClick={account.signOut}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    )
+  return (
+    <div className="gate inline">
+      <div className="gate-card">
+        <div className="gate-title">Who are you?</div>
+        <p className="gate-sub">Signed in as {user.email}. Pick your name once: this Google account becomes that roommate for good.</p>
+        <div className="chips center">
+          {NAMES.map((n) => {
+            const taken = !!claims[n]
+            return (
+              <button
+                key={n}
+                type="button"
+                className={`chip${pick === n ? ' on' : ''}`}
+                style={pick === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
+                disabled={taken}
+                title={taken ? 'Already claimed' : undefined}
+                onClick={() => setPick(n)}
+              >
+                {n}
+              </button>
+            )
+          })}
+        </div>
+        <button type="button" className="primary" onClick={onClaim} disabled={!pick || !!claims[pick]}>
+          {pick ? `I'm ${pick}` : 'Pick your name'}
+        </button>
+        {account.error ? <p className="gate-error">{account.error}</p> : null}
+        <button type="button" className="gate-link" onClick={account.signOut}>
+          Not a roommate? Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
 
 /* ---------- app ---------- */
 
 export default function Exchange() {
+  useAppHeight()
   const [route, go] = useRoute()
   const today = useToday()
   useMinute()
+  const [splash, setSplash] = useState('in') // 'in' | 'out' | 'gone'
   const [photos, setPhotos] = useState({})
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
   const [toast, setToast] = useState('')
@@ -994,10 +1071,15 @@ export default function Exchange() {
   const marketView = useChartView('market')
   const tickerView = useChartView('ticker')
 
-  // Google sign-in. A signed-in account that claimed a roommate in the Couch
-  // App is that roommate here too: roommates see the events, the reviewer acts.
-  const [user, setUser] = useState(null)
-  const [member, setMember] = useState(null)
+  // Google sign-in. A signed-in account claims one roommate, for good; the
+  // claim lives under members/{uid} and claims/{name}, so it follows the
+  // account onto any phone. Roommates see the events and the calendar; the
+  // reviewer can delete a report.
+  // undefined while Google is still answering; null once it says nobody is signed in
+  const [user, setUser] = useState(DEMO ? (OUTSIDER ? null : { uid: 'demo', email: 'noah@example.com' }) : undefined)
+  const [member, setMember] = useState(DEMO ? (OUTSIDER ? null : { name: REVIEWER }) : undefined)
+  const [claims, setClaims] = useState({})
+  const [pick, setPick] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const me = member ? member.name : ''
@@ -1005,23 +1087,162 @@ export default function Exchange() {
   const reviewer = (DEMO && !OUTSIDER) || (!!member && member.name === REVIEWER)
 
   useEffect(() => {
+    const t1 = setTimeout(() => setSplash('out'), 3000)
+    const t2 = setTimeout(() => setSplash('gone'), 3500)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (DEMO) return undefined
     getRedirectResult(auth).catch((e) => setAuthError(describeAuthError(e)))
     const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u || null))
     return () => unsubscribe()
   }, [])
 
   useEffect(() => {
+    if (DEMO) return undefined
     if (!user) {
-      setMember(null)
+      setMember(user === null ? null : undefined)
       return undefined
     }
+    setMember(undefined)
     const unsubscribe = onValue(
       ref(db, `members/${user.uid}`),
       (snap) => setMember(snap.exists() ? snap.val() : null),
       () => setMember(null)
     )
+    const unsubscribeClaims = onValue(
+      ref(db, 'claims'),
+      (snap) => setClaims(snap.exists() ? snap.val() : {}),
+      () => setClaims({})
+    )
+    return () => {
+      unsubscribe()
+      unsubscribeClaims()
+    }
+  }, [user])
+
+  const claim = async () => {
+    if (!user || !pick) return
+    if (!window.confirm(`Sign in as ${pick}? This Google account will be ${pick} for good.`)) return
+    setAuthError('')
+    try {
+      // one write, two paths: the claim on the name fails if someone already holds it
+      await update(ref(db), {
+        [`members/${user.uid}`]: { name: pick, email: user.email || '', at: new Date().toISOString() },
+        [`claims/${pick}`]: user.uid
+      })
+    } catch (e) {
+      setAuthError(/permission/i.test(e.message || '') ? `${pick} is already taken.` : e.message)
+    }
+  }
+
+  // the calendar's data: roommates only, so it is read once someone is signed in
+  const [reservations, setReservations] = useState({})
+  const [loadingRes, setLoadingRes] = useState(true)
+  useEffect(() => {
+    if (DEMO) {
+      setLoadingRes(false)
+      return undefined
+    }
+    if (!user) return undefined
+    const unsubscribe = onValue(
+      ref(db, 'reservations'),
+      (snap) => {
+        setReservations(snap.exists() ? snap.val() : {})
+        setLoadingRes(false)
+      },
+      (error) => {
+        console.error('Reservations error:', error)
+        setLoadingRes(false)
+      }
+    )
     return () => unsubscribe()
   }, [user])
+
+  // finished couch bookings become reports on the exchange, the first time a
+  // roommate opens the app after the booking's day has ended. Ids derive from
+  // the booking, so a booking is only ever filed once.
+  useEffect(() => {
+    if (DEMO || !member || loadingRes) return
+    const run = async () => {
+      try {
+        const snap = await get(ref(db, 'exchange/submissions'))
+        const existing = snap.exists() ? snap.val() : {}
+        const updates = {}
+        Object.entries(reservations).forEach(([dStr, dayRes]) => {
+          if (dStr < IPO || dStr >= today) return
+          Object.entries(dayRes || {}).forEach(([key, res]) => {
+            if (!res || !NAMES.includes(res.name)) return
+            const id = `couch-${dStr}-${key}`
+            if (existing[id]) return
+            const startMin = res.startMin != null ? res.startMin : (res.hour || 0) * 60
+            const endMin = res.endMin != null ? res.endMin : (res.endHour != null ? res.endHour : (res.hour || 0) + 1) * 60
+            const clock = (min) => {
+              if (min >= 1440) return '12 AM'
+              const h = Math.floor(min / 60)
+              const m = min % 60
+              const ampm = h >= 12 ? 'PM' : 'AM'
+              return m ? `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}` : `${h % 12 || 12} ${ampm}`
+            }
+            const when = `${clock(startMin)} – ${clock(endMin)}`
+            const base = { names: [res.name], name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), source: 'couch' }
+            updates[`exchange/submissions/${id}`] =
+              res.type === 'date'
+                ? { ...base, category: 'date', partner: res.guestName || '', text: `Reserved the couch for a date with ${res.guestName || 'someone'}, ${when}.${res.details ? ` ${res.details}` : ''}` }
+                : { ...base, category: 'social', partner: '', text: `Hosted on the couch, ${when}: ${res.details || 'an event'}.` }
+          })
+        })
+        if (Object.keys(updates).length) await update(ref(db), updates)
+      } catch (error) {
+        console.error('Exchange sync:', error)
+      }
+    }
+    run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member, loadingRes, today])
+
+  // settings: the partner that autofills a date booking, and the profile photo
+  const [partners, setPartners] = useState(() => {
+    try {
+      const raw = localStorage.getItem('couch.partners')
+      const map = raw ? JSON.parse(raw) : {}
+      return map && typeof map === 'object' ? map : {}
+    } catch {
+      return {}
+    }
+  })
+  const partner = me ? partners[me] || '' : ''
+  const setPartner = (v) => {
+    if (me) setPartners((prev) => ({ ...prev, [me]: v }))
+  }
+  useEffect(() => save('couch.partners', JSON.stringify(partners)), [partners])
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  const choosePhoto = async (file) => {
+    if (!file || !me) return
+    setPhotoBusy(true)
+    setPhotoError('')
+    try {
+      const dataUrl = await squarePhoto(file)
+      await set(ref(db, `profiles/${me}/photo`), dataUrl)
+    } catch (error) {
+      setPhotoError(error.message)
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+  const removePhoto = async () => {
+    if (!me || !window.confirm('Remove your profile photo?')) return
+    try {
+      await remove(ref(db, `profiles/${me}/photo`))
+    } catch (error) {
+      setPhotoError(error.message)
+    }
+  }
 
   const signIn = async () => {
     setAuthBusy(true)
@@ -1165,7 +1386,9 @@ export default function Exchange() {
   const page = route.page
   const tickerName = page === 't' && NAMES.includes(route.arg) ? route.arg : null
   const reporting = page === 'report'
-  const tab = page === 'events' || reporting ? 'events' : page === 'about' ? 'about' : 'market'
+  const tab = page === 'events' || reporting ? 'events' : page === 'about' ? 'about' : page === 'calendar' ? 'calendar' : 'market'
+  const settings = { photoBusy, photoError, hasPhoto: !!photos[me], choosePhoto, removePhoto, partner, setPartner }
+  const requests = countRequests(reservations, me)
   const mins = minutesToClose()
   const closesIn = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`
 
@@ -1203,7 +1426,7 @@ export default function Exchange() {
             </>
           ) : null}
         </div>
-        <h1>{tab === 'events' ? 'Events' : tab === 'about' ? 'About' : 'Market'}</h1>
+        <h1>{tab === 'events' ? 'Events' : tab === 'about' ? (member ? 'You' : 'About') : tab === 'calendar' ? 'Calendar' : 'Market'}</h1>
       </div>
       <span className="status" title="The board settles at midnight">
         <i className="pulse" aria-hidden="true" />
@@ -1216,37 +1439,48 @@ export default function Exchange() {
     <PhotoContext.Provider value={photos}>
       <div className="x-app">
         <div className="backdrop" aria-hidden="true" />
+        {tab === 'calendar' && member ? (
+          <Calendar me={me} partner={partner} allReservations={reservations} loading={loadingRes} />
+        ) : (
+          <>
         <header className="x-head">{header}</header>
         <main className="x-body" ref={bodyRef}>
-          {tickerName ? (
+          {tab === 'calendar' ? (
+            <CalendarGate account={account} claims={claims} pick={pick} setPick={setPick} onClaim={claim} />
+          ) : tickerName ? (
             <TickerPage market={market} today={today} name={tickerName} go={go} insider={insider} view={tickerView} />
           ) : reporting ? (
             <ReportPage market={market} today={today} account={account} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
             <EventsPage market={market} subs={subs} reviewer={reviewer} onDelete={removeSub} dbError={dbError} go={go} account={account} insider={insider} />
           ) : tab === 'about' ? (
-            <AboutPage theme={theme} setTheme={setTheme} onShare={share} insider={insider} />
+            <AboutPage theme={theme} setTheme={setTheme} onShare={share} account={account} settings={settings} />
           ) : (
             <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} />
           )}
         </main>
+          </>
+        )}
         <nav className="x-tabbar">
           {[
             { key: 'market', label: 'Market', path: '' },
             { key: 'events', label: 'Events', path: 'events' },
-            { key: 'about', label: 'About', path: 'about' }
+            { key: 'calendar', label: 'Calendar', path: 'calendar' },
+            { key: 'about', label: member ? 'You' : 'About', path: 'about' }
           ].map((t) => {
             const on = tab === t.key && !tickerName
             return (
               <button key={t.key} type="button" className={`tab${on ? ' on' : ''}`} onClick={() => go(t.path)}>
                 <TabIcon kind={t.key} active={on} />
                 {t.key === 'events' && reviewer && waiting ? <i className="tab-dot" aria-label="Events waiting for the committee" /> : null}
+                {t.key === 'calendar' && requests ? <i className="tab-dot" aria-label="Couch requests waiting" /> : null}
                 <span>{t.label}</span>
               </button>
             )
           })}
         </nav>
         {toast ? <div className="toast">{toast}</div> : null}
+        {splash !== 'gone' ? <Splash leaving={splash === 'out'} /> : null}
       </div>
     </PhotoContext.Provider>
   )

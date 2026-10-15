@@ -1,111 +1,44 @@
-# 🛋️ Couch Reservation Calendar
+# 🛋️📈 449 Boyos
 
-A simple shared calendar to reserve your apartment couch. No overbooking allowed!
+One app for the apartment, at the couch calendar's address:
 
-## Roommates only
+- **Market, Events, About**: the 449 Exchange, the roommate stock market.
+  Public. Anyone can watch the board and report an event; only roommates
+  see the events behind the numbers. The rules, the pricing and the daily
+  routine are in [EXCHANGE.md](EXCHANGE.md).
+- **Calendar**: the couch reservation calendar, roommates only. Google
+  sign-in, then each roommate claims their name once and it sticks to that
+  Google account. Day, week and month views, bookings on a 15-minute grid,
+  requests to release a booking, partner autofill, profile photos.
+- **You** (the About tab once signed in): profile photo, partner, appearance,
+  sign out.
 
-The calendar asks for a Google sign-in. The first time an account signs in it
-picks which roommate it is, and that choice is permanent for the account.
-Anyone without a sign-in sees only the sign-in screen and a link to the
-exchange. Google sign-in has to be enabled in the Firebase console and the
-site's domain added to the authorized domains; the database rules in
-`database.rules.json` keep reservations private. See
-[EXCHANGE.md](EXCHANGE.md) for the exact steps.
+Everything opens behind the 449 Boyos splash.
 
-## Features
-
-- **Simple UI**: Just click a time slot to reserve it
-- **Real-time sync**: Changes show up instantly for everyone
-- **Daily view**: Navigate through dates with Previous/Next buttons
-- **Full details**: Add your name and event details (who's coming, what's happening)
-- **Delete reservations**: Remove your own reservations anytime
-- **Mobile friendly**: Works on phones too
-
-## 📈 449 Exchange
-
-The same build also serves the roommate stock market at `/exchange/`, or at
-the root of its own Railway service with `APP=exchange`. Prices move on
-events the household reports; see [EXCHANGE.md](EXCHANGE.md) for the rules,
-the hosting setup, and how a filing is made.
-
-## Setup
-
-### 1. Install Dependencies
+## Run it
 
 ```bash
 npm install
+npm run dev        # http://localhost:3000
+npm test           # the pricing engine's unit tests
+npm run build && npm start   # what Railway runs
 ```
 
-### 2. Setup Firebase
+Add `?demo` to the address to see the board with made-up history, signed in
+as Noah; `?demo&outsider` shows what the public sees.
 
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project (or use existing)
-3. Enable **Realtime Database** (create in test mode for now)
-4. Go to Project Settings → Service Accounts → Get your config
-5. Copy your Firebase config values
-6. Open `src/firebase.js` and replace the placeholder values with your real config:
+## Hosting
 
-```javascript
-const firebaseConfig = {
-  apiKey: "your_api_key_here",
-  authDomain: "your_project.firebaseapp.com",
-  projectId: "your_project_id",
-  storageBucket: "your_project.appspot.com",
-  messagingSenderId: "your_sender_id",
-  appId: "your_app_id",
-  databaseURL: "https://your_project.firebaseio.com"
-}
-```
+Railway builds with `npm run build` and starts `server.js`, a small static
+server over `dist/`. One service, deploying from `main`. The old `/exchange/`
+address redirects to the root.
 
-### 3. Run Locally
+## Firebase
 
-```bash
-npm run dev
-```
-
-Open http://localhost:3000 in your browser!
-
-## Firebase Database Rules
-
-For production, update your Firebase Realtime Database rules to this:
-
-```json
-{
-  "rules": {
-    "reservations": {
-      ".read": true,
-      ".write": true
-    }
-  }
-}
-```
-
-Go to Firebase Console → Database → Rules and paste that in.
-
-## Deploy to Railway
-
-1. Push your code to GitHub
-2. Go to [Railway.app](https://railway.app/)
-3. Create new project → GitHub Repo
-4. Select this repository
-5. Add environment variables (same as your firebase.js)
-6. Deploy!
-
-Or use Railway CLI:
-```bash
-npm install -g @railway/cli
-railway init
-railway up
-```
-
-## How to Use
-
-1. **Browse dates**: Use Previous/Next to navigate
-2. **Pick a time**: Click any available (blue) time slot
-3. **Fill info**: Enter your name and what the reservation is for
-4. **Reserve**: Click the Reserve button
-5. **Delete**: Click the X button on any reservation to remove it
-
-Times available: 8 AM to 11 PM every day
-
-Enjoy your organized couch! 🛋️
+Both halves use the same Firebase project and Realtime Database, with the
+config in `src/firebase.js`. Google sign-in must be enabled and the site's
+domain listed under Authentication → Settings → Authorized domains. The
+database rules are checked in as `database.rules.json` and published from
+the console (Realtime Database → Rules); they keep reservations private to
+signed-in roommates, let a name be claimed once, let anyone add an event
+report and only Noah's account change or delete one.

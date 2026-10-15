@@ -1,7 +1,7 @@
 {
-  "name": "Couch App",
-  "short_name": "Couch App",
-  "description": "One couch. Five roommates. Book it before someone else does.",
+  "name": "449 Boyos",
+  "short_name": "449 Boyos",
+  "description": "The roommate stock exchange, and the couch calendar for the roommates.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

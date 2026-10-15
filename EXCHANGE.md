@@ -1,10 +1,9 @@
 # 📈 449 Exchange
 
 The official roommate stock market of 449. Five listings, one per roommate,
-each opened at **$100.00** on **Saturday, August 1, 2026** with 10,000 shares
-outstanding. It lives at **`/exchange/`** on the same deploy as the Couch App
-(there is a link in the Couch App's Settings, and "Open the Couch App" on the
-exchange's About tab).
+each opened at **$100.00** on **Saturday, August 1, 2026**. It is the front
+of the 449 Boyos app, at the couch calendar's address; the calendar is a tab
+of the same app, for roommates only.
 
 | Roommate | Ticker |
 |---|---|
@@ -22,15 +21,17 @@ exchange's About tab).
   prices. The filings, the closing report and the Events feed appear only for
   a roommate signed in with Google (the sign-in row is at the bottom of the
   Events tab); Noah also gets Delete on reports not yet ruled on.
-- **The couch calendar is roommates only.** It asks for a Google sign-in; the
+- **The Calendar tab is roommates only.** It asks for a Google sign-in; the
   first time an account signs in it picks which roommate it is, and that
   claim is permanent (stored under `members/{uid}` and `claims/{name}`, so it
   follows the account onto any phone). Each name can be claimed exactly once,
   so once the five have signed in, any other Google account is told the
-  calendar is not for it and pointed at the exchange. Without a sign-in the
-  calendar shows only a sign-in screen and a link to the exchange. If a
-  roommate ever needs to move to a different Google account, delete their
-  entry under `claims` in the Firebase console and they can claim again.
+  calendar is not for it. Without a sign-in the tab shows only the sign-in
+  card. If a roommate ever needs to move to a different Google account,
+  delete their entry under `claims` in the Firebase console and they can
+  claim again.
+- **The About tab becomes You** for a signed-in roommate: profile photo,
+  partner autofill, appearance and sign out, above the About text.
 - **Noah** is recognised the same way: signed in on the exchange's Events
   tab with the account that claimed Noah, a Delete appears on each report
   that has not been ruled on yet.
@@ -107,32 +108,10 @@ every load, so a backdated filing lands exactly where it belongs in the chart.
 
 ## Hosting on Railway
 
-One repo, two Railway services, one Firebase project.
-
-**The Couch App service you already have** keeps deploying as before. Once
-the `exchange` branch is merged into `main`, that service also serves the
-exchange at `https://<couch-domain>/exchange/`, and the Couch App's Settings
-tab links to it.
-
-**A second service gives the exchange its own link.** In the Railway
-dashboard:
-
-1. In the project, **New → GitHub Repo** and pick this same repository.
-2. Under the new service's **Settings → Source**, set the branch (`exchange`
-   now, or `main` once merged).
-3. Under **Variables**, add `APP` = `exchange`. That makes the server put the
-   exchange at the root of this service's domain instead of under
-   `/exchange/`.
-4. Under **Settings → Networking**, **Generate Domain** (or attach a custom
-   one). That is the exchange's link.
-5. Optional: add `VITE_COUCH_URL` = the Couch App's URL so the "Open the Couch
-   App" row on the About tab points across, and on the Couch App's service add
-   `VITE_EXCHANGE_URL` = the exchange's URL so its Settings link does the same.
-
-Railway builds with `npm run build` and starts with `npm start`, which runs
-`server.js`: a small static server that serves `dist/` and, when `APP` is
-`exchange`, answers `/` with the exchange page. Nothing else differs between
-the two services.
+One Railway service, deploying from `main`. Railway builds with
+`npm run build` and starts with `npm start`, which runs `server.js`: a small
+static server that serves `dist/` and sends the old `/exchange/` address to
+the root.
 
 ## Firebase
 
@@ -200,8 +179,11 @@ old Couch App cannot read reservations under them.
 - **Events**: the report button, and for roommates the reports awaiting the
   committee, every filing grouped by day with the committee's verdict, and
   the filed reports. Noah also gets Delete on reports not yet ruled on.
-- **About**: how the exchange works in a paragraph (no numbers), a theme
-  toggle, a share button, and the link to the calendar.
+- **Calendar**: the couch calendar, for signed-in roommates; the sign-in
+  card for everyone else.
+- **About**: how the exchange works in a paragraph (no numbers) and a share
+  button; for a signed-in roommate it is the You tab, with the profile
+  photo, partner, appearance and sign out above that.
 
 Add `?demo` to the URL (`/exchange/?demo`) to preview the board with a few
 weeks of made-up filings and submissions, with the reviewer controls on and
@@ -217,9 +199,10 @@ Demo data never touches the real ledger or database.
 | `src/exchange/market.js` | Pure pricing engine: rebuilds the board from the ledger, the weekly step down, series, ranges, stats, the closing report |
 | `src/exchange/market.test.mjs` | Unit tests for the engine (`npm test`) |
 | `src/exchange/charts.jsx` | SVG sparkline, price chart and all-listings chart with crosshair tooltips and table views |
-| `src/exchange/Exchange.jsx` | The app: routing, pages, the report form, review controls, theme, profile photos |
+| `src/exchange/Exchange.jsx` | The app: routing, pages, the report form, sign-in and claims, the calendar tab, settings |
+| `src/calendar/Calendar.jsx` | The couch calendar: day, week and month views, the booking sheet, release requests |
+| `src/calendar/calendar.css` | The calendar's styles |
+| `src/shared.jsx` | Avatars, the splash, the sign-in error text, the iOS viewport fix |
 | `src/exchange/exchange.css` | Styles, light and dark |
-| `exchange/index.html` | The second Vite entry, served at `/exchange/` |
-| `server.js` | The production server: `dist/` at `/`, or the exchange at the root when `APP=exchange` |
-| `public/exchange/manifest.json` | Web app manifest so the exchange can be added to a home screen |
+| `server.js` | The production server over `dist/`, with `/exchange/` sent to the root |
 | `src/roommates.js` | The roster and colours, shared with the Couch App |
