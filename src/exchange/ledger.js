@@ -202,6 +202,90 @@ export const LEDGER = [
     ref: 'couch-2026-10-03-1140'
   },
 
+  // ---- Ruled October 15, 2026: game night and the week's bookings ----
+  {
+    day: '2026-10-11',
+    name: 'Bryon',
+    type: 'social',
+    title: 'Game night: brought three FHE guests',
+    pct: 12,
+    note: 'Sunday game night at the house. Bryon invited three girls from FHE and all three came.',
+    verdict: 'The most shorted name on the board invites three guests to his own living room and all three show. One filing in two months, then this. A squeeze.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-11',
+    name: 'James',
+    type: 'romance',
+    title: 'Game night: brought Sophie',
+    pct: 8,
+    note: 'Sunday game night at the house. James invited Sophie and she came.',
+    verdict: 'Two dates on record and now she meets the household. The thesis on JAMS moves from a name to a relationship.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-11',
+    name: 'Andrew',
+    type: 'social',
+    title: 'Game night: ran a game',
+    pct: 6,
+    note: 'Sunday game night at the house. Andrew led one of the games.',
+    verdict: 'Attendance plus leadership. The man holding the rulebook earns a premium over the men on the couch.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-11',
+    name: 'Noah',
+    type: 'social',
+    title: 'Game night',
+    pct: 4,
+    note: 'Sunday game night at the house. All five roommates attended.',
+    verdict: 'Present at a full-house event. The market pays for showing up; it pays more for bringing someone.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-11',
+    name: 'Jonas',
+    type: 'social',
+    title: 'Game night',
+    pct: 4,
+    note: 'Sunday game night at the house. All five roommates attended.',
+    verdict: 'Present at a full-house event. First filing on JNAS since September 3; the market is glad to hear from him.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-15',
+    name: 'Bryon',
+    type: 'romance',
+    title: 'Confirmed a date with Lauryn for Friday',
+    partner: 'Lauryn',
+    pct: 5,
+    note: 'Date with Lauryn confirmed for Friday, October 16.',
+    verdict: 'Guidance, not earnings: a confirmed booking with a name on it, four days after game night. The date itself prints Friday.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-15',
+    name: 'Noah',
+    type: 'romance',
+    title: 'A maybe for a date on Friday',
+    pct: 2,
+    note: 'A date on Friday, October 16, confirmed as a maybe.',
+    verdict: 'A maybe is not a booking. The desk pencils it in and waits for Friday.',
+    by: 'Noah'
+  },
+  {
+    day: '2026-10-15',
+    name: 'James',
+    type: 'romance',
+    title: 'Confirmed a date with Sophie for Saturday',
+    partner: 'Sophie',
+    pct: 3,
+    note: 'Date with Sophie confirmed for Saturday, October 17.',
+    verdict: 'Expected. The market already owns this story, so a confirmation is worth less here than it would be for anyone else. Saturday prints Saturday.',
+    by: 'Noah'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' }
 ]

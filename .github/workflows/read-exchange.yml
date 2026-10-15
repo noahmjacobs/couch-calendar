@@ -1,10 +1,13 @@
 # Prints the exchange's data (event reports and Brindex reports) to the job
 # log, so the pricing committee can read what the household submitted without
-# touching the database from anywhere else. Run it from the Actions tab or the
-# API. The exchange path is readable by anyone, so this needs no secret.
+# touching the database from anywhere else. It runs on every push to main and
+# can be run by hand from the Actions tab. The exchange path is readable by
+# anyone, so this needs no secret.
 name: Read the exchange
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 jobs:
   read:
     runs-on: ubuntu-latest
