@@ -1,0 +1,7 @@
+{
+  "rules": {
+    "reservations": { ".read": true, ".write": true },
+    "profiles": { ".read": true, ".write": true },
+    "exchange": { ".read": true, ".write": true }
+  }
+}

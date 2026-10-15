@@ -148,8 +148,10 @@ alongside `reservations` and `profiles`:
 }
 ```
 
-Until that rule is in place the Events tab shows a banner saying the database
-refused the read or the write. Prices never depend on the database: they come
+The same rules are checked in as `database.rules.json`, so with the Firebase
+CLI signed in to the project they can be applied from a terminal with
+`npx firebase-tools deploy --only database`. Until the rule is in place the
+Events tab shows a banner saying the database refused the read or the write. Prices never depend on the database: they come
 from the ledger in the code. Profile photos are read from `profiles`, the same
 as the Couch App.
 
