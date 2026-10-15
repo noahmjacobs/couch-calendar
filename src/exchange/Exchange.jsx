@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import { db, auth } from '../firebase'
-import { ref, onValue, push, update } from 'firebase/database'
+import { ref, onValue, push, remove } from 'firebase/database'
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth'
 import { NAMES, COLOR, INK } from '../roommates.js'
 import { IPO, LEDGER } from './ledger.js'
@@ -77,11 +77,11 @@ const demoData = (today) => {
     { day: d(39), name: 'Noah', type: 'date', partner: 'Priya', pct: 10, note: 'Museum, then tacos.', verdict: 'First date after a long quiet spell. Full credit.', by: 'Jonas', ref: 'demo-s4' }
   ]
   const submissions = {
-    'demo-s1': { names: ['James'], name: 'James', category: 'apartment', text: 'Did every dish in the sink without being asked.', day: today, by: 'Bryon', at: `${today}T18:20:00.000Z`, status: 'pending' },
-    'demo-s2': { names: ['Andrew'], name: 'Andrew', category: 'romance', text: 'Got a number at the farmers market. Unprompted.', day: addDays(today, -1), by: 'Noah', at: `${addDays(today, -1)}T21:02:00.000Z`, status: 'approved' },
-    'demo-s3': { names: ['Noah'], name: 'Noah', category: 'other', text: 'Noah is simply the best roommate and deserves +40%.', day: addDays(today, -3), by: 'Anonymous', at: `${addDays(today, -3)}T23:40:00.000Z`, status: 'rejected' },
-    'demo-s4': { names: ['Noah'], name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z`, status: 'approved' },
-    'demo-s5': { names: NAMES, name: 'Noah', category: 'social', text: 'All five went to trivia at the bar. Came third.', day: addDays(today, -1), by: 'Couch App', at: `${addDays(today, -1)}T23:00:00.000Z`, status: 'approved', source: 'couch' }
+    'demo-s1': { names: ['James'], name: 'James', category: 'apartment', text: 'Did every dish in the sink without being asked.', day: today, by: 'Bryon', at: `${today}T18:20:00.000Z` },
+    'demo-s2': { names: ['Andrew'], name: 'Andrew', category: 'romance', text: 'Got a number at the farmers market. Unprompted.', day: addDays(today, -1), by: 'Noah', at: `${addDays(today, -1)}T21:02:00.000Z` },
+    'demo-s3': { names: ['Noah'], name: 'Noah', category: 'other', text: 'Noah is simply the best roommate and deserves +40%.', day: addDays(today, -3), by: 'Anonymous', at: `${addDays(today, -3)}T23:40:00.000Z` },
+    'demo-s4': { names: ['Noah'], name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z` },
+    'demo-s5': { names: NAMES, name: 'Noah', category: 'social', text: 'All five went to trivia at the bar. Came third.', day: addDays(today, -1), by: 'Couch App', at: `${addDays(today, -1)}T23:00:00.000Z`, source: 'couch' }
   }
   return { ipo, ledger, submissions }
 }
@@ -317,9 +317,7 @@ const Filing = ({ e, showName = true, onName }) => (
   </div>
 )
 
-const STATUS_LABEL = { pending: 'Pending review', approved: 'Approved', filed: 'Filed', rejected: 'Rejected' }
-
-const Submission = ({ s, reviewer, onReview, filed, onName }) => {
+const Submission = ({ s, reviewer, onDelete, filed, onName }) => {
   const cat = CATEGORY[s.category] || CATEGORY.other
   const names = namesOf(s)
   return (
@@ -346,7 +344,7 @@ const Submission = ({ s, reviewer, onReview, filed, onName }) => {
             {cat.emoji} {cat.label}
             {s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}
           </span>
-          <span className={`badge ${s.status}`}>{STATUS_LABEL[s.status] || s.status}</span>
+          <span className={`badge ${filed ? 'filed' : 'pending'}`}>{filed ? 'Filed' : 'Submitted'}</span>
           {s.source === 'couch' ? <span className="badge">Couch App</span> : null}
           {filed && filed.length === 1 ? <Delta pct={filed[0].pct} /> : null}
         </div>
@@ -362,26 +360,12 @@ const Submission = ({ s, reviewer, onReview, filed, onName }) => {
         ) : null}
         <div className="sub-meta">
           {fmtDay(s.day, { weekday: 'short', month: 'short', day: 'numeric' })} · reported by {s.by || 'Anonymous'}
-          {s.status === 'approved' && s.reviewedBy ? ` · approved by ${s.reviewedBy}` : ''}
-          {s.status === 'rejected' && s.reviewedBy ? ` · rejected by ${s.reviewedBy}` : ''}
         </div>
-        {reviewer && s.status !== 'filed' ? (
+        {reviewer && !filed ? (
           <div className="sub-actions">
-            {s.status !== 'approved' ? (
-              <button type="button" className="chip small" onClick={() => onReview(s.id, 'approved')}>
-                Approve
-              </button>
-            ) : null}
-            {s.status !== 'rejected' ? (
-              <button type="button" className="chip small" onClick={() => onReview(s.id, 'rejected')}>
-                Reject
-              </button>
-            ) : null}
-            {s.status !== 'pending' ? (
-              <button type="button" className="chip small" onClick={() => onReview(s.id, 'pending')}>
-                Undo
-              </button>
-            ) : null}
+            <button type="button" className="chip small" onClick={() => onDelete(s)}>
+              Delete
+            </button>
           </div>
         ) : null}
       </div>
@@ -696,11 +680,10 @@ const TickerPage = ({ market, today, name, go, insider, view }) => {
   )
 }
 
-const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, account, insider }) => {
+const EventsPage = ({ market, subs, reviewer, onDelete, dbError, go, account, insider }) => {
   const events = eventList(market)
-  const pending = subs.filter((s) => s.status === 'pending')
-  const approved = subs.filter((s) => s.status === 'approved')
-  const resolved = subs.filter((s) => s.status === 'filed' || s.status === 'rejected')
+  const open = subs.filter((s) => !s.filed)
+  const done = subs.filter((s) => s.filed)
   const byDay = []
   events.forEach((e) => {
     const last = byDay[byDay.length - 1]
@@ -741,52 +724,21 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, account, in
       </button>
       <DbBanner error={dbError} />
 
-      {reviewer ? (
-        <div className="card tight">
-          <div className="row-title">Committee desk</div>
-          <div className="row-sub" style={{ whiteSpace: 'normal' }}>
-            {pending.length} pending your review · {approved.length} approved and waiting for the committee's ruling
-          </div>
+      <div className="group">
+        <div className="group-head">
+          <span className="group-label">Submitted · awaiting the committee</span>
+          <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+            {open.length}
+          </span>
         </div>
-      ) : null}
-
-      {pending.length ? (
-        <div className="group">
-          <div className="group-head">
-            <span className="group-label">Awaiting review</span>
-            <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-              {pending.length}
-            </span>
-          </div>
-          <div className="list">
-            {pending.map((s) => (
-              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} onName={(n) => go(`t/${n}`)} />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {approved.length ? (
-        <div className="group">
-          <div className="group-head">
-            <span className="group-label">Approved · awaiting the ruling</span>
-            <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-              {approved.length}
-            </span>
-          </div>
-          <div className="list">
-            {approved.map((s) => (
-              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} onName={(n) => go(`t/${n}`)} />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {!pending.length && !approved.length && !dbError ? (
         <div className="list">
-          <div className="empty">Nothing waiting on the committee. Something happen? Report it above.</div>
+          {open.length ? (
+            open.map((s) => <Submission key={s.id} s={s} reviewer={reviewer} onDelete={onDelete} onName={(n) => go(`t/${n}`)} />)
+          ) : (
+            <div className="empty">Nothing waiting on the committee. Something happen? Report it above.</div>
+          )}
         </div>
-      ) : null}
+      </div>
 
       <div className="group">
         <div className="group-head">
@@ -817,14 +769,14 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, account, in
         )}
       </div>
 
-      {resolved.length ? (
+      {done.length ? (
         <details className="plain">
           <summary>
-            {resolved.length} resolved {resolved.length === 1 ? 'submission' : 'submissions'}
+            {done.length} filed {done.length === 1 ? 'submission' : 'submissions'}
           </summary>
           <div className="list" style={{ marginTop: 8 }}>
-            {resolved.map((s) => (
-              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} filed={filedBy[s.id]} onName={(n) => go(`t/${n}`)} />
+            {done.map((s) => (
+              <Submission key={s.id} s={s} reviewer={reviewer} filed={filedBy[s.id]} onName={(n) => go(`t/${n}`)} />
             ))}
           </div>
         </details>
@@ -835,7 +787,7 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, account, in
       </div>
       {account.error ? <div className="banner">{account.error}</div> : null}
       <p className="footnote center">
-        Anyone can report. {REVIEWER} confirms the day's reports; the committee rules on the confirmed ones and the
+        Anyone can report. {REVIEWER} goes over the day's reports with the committee, the committee rules, and the
         board moves at the close.
       </p>
     </div>
@@ -873,8 +825,7 @@ const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) =
         day,
         by: who,
         uid: account.user ? account.user.uid : '',
-        at: new Date().toISOString(),
-        status: 'pending'
+        at: new Date().toISOString()
       })
       go('events')
     } catch (err) {
@@ -961,8 +912,7 @@ const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) =
         {busy ? 'Posting…' : 'Post to the Events page'}
       </button>
       <p className="footnote center">
-        It posts right away as pending. {REVIEWER} confirms it, the committee rules on it, and the price moves at the
-        close.
+        It posts right away. The committee rules on it at the close and the price moves.
       </p>
     </form>
   )
@@ -978,9 +928,9 @@ const AboutPage = ({ theme, setTheme, onShare, insider }) => (
         read on that roommate at any given moment. Sometimes it runs hot, sometimes it does not.
       </p>
       <p>
-        Prices move on <strong>material events</strong>. Anyone reports one on the Events tab. {REVIEWER} confirms
-        the day's reports, the committee weighs each one against the listing's history and what it means for it, and
-        the board moves at the close.
+        Prices move on <strong>material events</strong>. Anyone reports one on the Events tab. At the close the
+        committee goes over the day's reports with the household, weighs each one against the listing's history and
+        what it means for it, and the board moves.
       </p>
       <p className="muted">
         How much any event is worth is for the committee to decide. Rulings are published to the household with their
@@ -1151,17 +1101,17 @@ export default function Exchange() {
     return () => clearTimeout(id)
   }, [toast])
 
-  // a submission the ledger has ruled on is filed, whatever its stored status
+  // a submission the ledger has ruled on is filed; anything else is waiting
   const filedRefs = useMemo(() => new Set(market.events.map((e) => e.ref).filter(Boolean)), [market])
   const subs = useMemo(
     () =>
       Object.entries(rawSubs || {})
-        .map(([id, s]) => ({ ...s, id, status: filedRefs.has(id) ? 'filed' : s.status || 'pending' }))
-        .filter((s) => namesOf(s).length)
+        .map(([id, s]) => ({ ...s, id, filed: filedRefs.has(id) }))
+        .filter((s) => namesOf(s).length && s.status !== 'rejected')
         .sort((a, b) => (b.at || '').localeCompare(a.at || '')),
     [rawSubs, filedRefs]
   )
-  const waiting = subs.filter((s) => s.status === 'pending' || s.status === 'approved').length
+  const waiting = subs.filter((s) => !s.filed).length
 
   const submitEvent = async (record) => {
     if (DEMO) {
@@ -1179,14 +1129,21 @@ export default function Exchange() {
     }
   }
 
-  const review = async (id, status) => {
-    const patch = { status, reviewedBy: me || (DEMO ? REVIEWER : 'reviewer'), reviewedAt: new Date().toISOString() }
+  // only the reviewer's Google account may remove a report; the database rule
+  // checks it against the Noah claim, so this is not merely hidden for others
+  const removeSub = async (s) => {
+    if (!window.confirm(`Delete this report about ${listNames(namesOf(s))}? It will not be ruled on.`)) return
     if (DEMO) {
-      setRawSubs((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+      setRawSubs((prev) => {
+        const next = { ...prev }
+        delete next[s.id]
+        return next
+      })
       return
     }
     try {
-      await update(ref(db, `exchange/submissions/${id}`), patch)
+      await remove(ref(db, `exchange/submissions/${s.id}`))
+      setToast('Report deleted')
     } catch (error) {
       setDbError({ kind: 'write', message: error && error.message })
     }
@@ -1264,7 +1221,7 @@ export default function Exchange() {
           ) : reporting ? (
             <ReportPage market={market} today={today} account={account} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
-            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} account={account} insider={insider} />
+            <EventsPage market={market} subs={subs} reviewer={reviewer} onDelete={removeSub} dbError={dbError} go={go} account={account} insider={insider} />
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} insider={insider} />
           ) : (
@@ -1281,9 +1238,7 @@ export default function Exchange() {
             return (
               <button key={t.key} type="button" className={`tab${on ? ' on' : ''}`} onClick={() => go(t.path)}>
                 <TabIcon kind={t.key} active={on} />
-                {t.key === 'events' && reviewer && subs.some((s) => s.status === 'pending') ? (
-                  <i className="tab-dot" aria-label="Events waiting for review" />
-                ) : null}
+                {t.key === 'events' && reviewer && waiting ? <i className="tab-dot" aria-label="Events waiting for the committee" /> : null}
                 <span>{t.label}</span>
               </button>
             )

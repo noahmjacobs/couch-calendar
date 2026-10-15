@@ -12,6 +12,13 @@
       ".read": "auth != null",
       "$name": { ".write": "auth != null && !data.exists() && newData.val() == auth.uid" }
     },
-    "exchange": { ".read": true, ".write": true }
+    "exchange": {
+      ".read": true,
+      "submissions": {
+        "$id": {
+          ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
+        }
+      }
+    }
   }
 }

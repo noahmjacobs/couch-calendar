@@ -21,7 +21,7 @@ exchange's About tab).
   a ticker and report an event, with no sign-in. That is all they see:
   prices. The filings, the closing report and the Events feed appear only for
   a roommate signed in with Google (the sign-in row is at the bottom of the
-  Events tab); Noah also gets Approve and Reject.
+  Events tab); Noah also gets Delete on reports not yet ruled on.
 - **The couch calendar is roommates only.** It asks for a Google sign-in; the
   first time an account signs in it picks which roommate it is, and that
   claim is permanent (stored under `members/{uid}` and `claims/{name}`, so it
@@ -31,31 +31,30 @@ exchange's About tab).
   calendar shows only a sign-in screen and a link to the exchange. If a
   roommate ever needs to move to a different Google account, delete their
   entry under `claims` in the Firebase console and they can claim again.
-- **The reviewer** is recognised the same way: on the exchange's Events tab,
-  "Roommate? Sign in with Google" signs Noah in, and the Approve and Reject
-  controls appear.
+- **Noah** is recognised the same way: signed in on the exchange's Events
+  tab with the account that claimed Noah, a Delete appears on each report
+  that has not been ruled on yet.
 
 ## The daily routine
 
 1. **Anyone reports an event** on the Events tab: pick the roommate (or
    several, or everyone), the kind of thing, what happened and when. A
    signed-in roommate reports as themselves, always; anyone else types a
-   name or stays anonymous. It posts to the Events page immediately as
-   *pending*. **Couch bookings report themselves:** the first time a
-   roommate opens the Couch App after a booking's day has ended, that booking
-   lands on the Events page already approved and tagged "Couch App" (a date
-   booking carries the guest's name). A booking for next Thursday shows up on
-   Friday, never before.
-2. **Noah confirms.** On Noah's phone (the one the Couch App is signed in as
-   Noah) each pending event shows Approve and Reject. Approved events wait
-   for the ruling.
-3. **The committee rules.** The committee is Claude, in the chat where this
-   app is built. Noah says the word, Claude reads the approved events from
-   the database (through a short-lived script on Railway, since the build
-   sandbox cannot reach Firebase directly), rules on each one, appends the
-   filings to the ledger with its reasoning, and pushes. The deploy moves the
-   board. A filing that carries the submission's id (`ref`) marks that
-   submission as *filed* on the Events page.
+   name or stays anonymous. It posts to the Events page immediately.
+   **Couch bookings report themselves:** the first time a roommate opens the
+   Couch App after a booking's day has ended, that booking lands on the
+   Events page tagged "Couch App" (a date booking carries the guest's name).
+   A booking for next Thursday shows up on Friday, never before.
+2. **Noah can delete a report** from the Events tab, and only Noah: the
+   database rule allows a change or deletion only from the Google account
+   that holds the Noah claim. Nobody approves anything in the app.
+3. **At the close, Noah comes to the chat** and says "update today", with
+   any corrections: "everyone was at that one", "add that it was her
+   birthday", "skip the second one". The committee (Claude) reads the
+   submitted events from the database, weighs each one against the
+   roommate's history and how expected it was, writes the filings with its
+   reasoning, and pushes. The deploy moves the board, and each filing's
+   `ref` marks its submission as filed.
 
 ## How prices move
 
@@ -165,15 +164,23 @@ published in the console (Realtime Database → Rules), or with
       ".read": "auth != null",
       "$name": { ".write": "auth != null && !data.exists() && newData.val() == auth.uid" }
     },
-    "exchange": { ".read": true, ".write": true }
+    "exchange": {
+      ".read": true,
+      "submissions": {
+        "$id": {
+          ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
+        }
+      }
+    }
   }
 }
 ```
 
 Reservations are private to signed-in roommates. Profile photos stay readable
 by the public exchange but only a signed-in roommate can change them. A
-roommate claim can be written once and never changed. The exchange's
-submissions are open so anyone can report and the reviewer can act on them.
+roommate claim can be written once and never changed. Anyone can add an
+event report; only the Google account holding the Noah claim can change or
+delete one.
 Publish these rules together with the Couch App that asks for sign-in: the
 old Couch App cannot read reservations under them.
 
@@ -187,10 +194,9 @@ old Couch App cannot read reservations under them.
   arrow keys for a day's value; a table view underneath), stats including how
   long the listing has been quiet and its last filing, a button to report
   something about that roommate, and that roommate's filings.
-- **Events**: the report button, and for roommates what is awaiting review
-  and awaiting a ruling, every filing grouped by day with the committee's
-  verdict, and resolved submissions. Noah also sees the committee desk with
-  the counts.
+- **Events**: the report button, and for roommates the reports awaiting the
+  committee, every filing grouped by day with the committee's verdict, and
+  the filed reports. Noah also gets Delete on reports not yet ruled on.
 - **About**: how the exchange works in a paragraph (no numbers), a theme
   toggle, a share button, and the link to the calendar.
 

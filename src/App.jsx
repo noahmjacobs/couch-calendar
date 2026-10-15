@@ -442,7 +442,7 @@ export default function App() {
             if (existing[id]) return
             const when = rangeLabel(res.start, res.end)
             // a booking is a verified event, so it arrives already approved
-            const base = { names: [res.name], name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), status: 'approved', source: 'couch' }
+            const base = { names: [res.name], name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), source: 'couch' }
             updates[`exchange/submissions/${id}`] =
               res.type === 'date'
                 ? {
