@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import { db } from '../firebase'
-import { ref, onValue } from 'firebase/database'
-import { ROOMMATES, NAMES, COLOR, INK } from '../roommates.js'
+import { ref, onValue, push, update } from 'firebase/database'
+import { NAMES, COLOR, INK } from '../roommates.js'
 import { IPO, LEDGER } from './ledger.js'
 import {
   TICKER,
   INDEX_NAME,
   IPO_PRICE,
   EVENT_TYPES,
-  NOISE,
+  DATING,
+  IDLE_GRACE_DAYS,
+  IDLE_DECAY,
+  IDLE_SPAN_DAYS,
   PCT_LIMIT,
   SHARES,
   dateKey,
@@ -22,66 +25,59 @@ import {
   buildMarket,
   priceSeries,
   indexSeries,
-  indexValue,
   indexChange,
   dayChange,
   rankings,
   eventList,
   tickerStats,
   closedDays,
-  closingReport,
-  dayElapsed
+  closingReport
 } from './market.js'
 import { Sparkline, PriceChart, MultiChart } from './charts.jsx'
 
+/* ---------- what people can report ---------- */
+
+const CATEGORIES = [
+  { id: 'date', label: 'Date', emoji: '🌹' },
+  { id: 'romance', label: 'Romance', emoji: '💘' },
+  { id: 'life', label: 'Life', emoji: '🏆' },
+  { id: 'apartment', label: 'Apartment', emoji: '🧽' },
+  { id: 'other', label: 'Other', emoji: '📝' }
+]
+const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
+
+// the household's reviewer. Honor system: the exchange trusts the name the
+// Couch App signed this phone in as.
+const REVIEWER = 'Noah'
+
 /* ---------- demo data (?demo in the URL) ---------- */
 
-// two weeks of made-up filings so the board can be previewed with history
 const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
 
-const DEMO_NOTES = {
-  girlfriend: 'Instagram-official as of this evening.',
-  'first-kiss': 'Confirmed by two witnesses on the balcony.',
-  date: 'Dinner downtown. Home by eleven.',
-  number: 'Obtained at the farmers market, unprompted.',
-  ghosted: 'Last message delivered, unread, six days.',
-  dumped: 'Over text. The household is in mourning.',
-  'big-w': 'Offer letter signed.',
-  gym: 'New bench PR, witnessed.',
-  hungover: 'Emerged at 1:40 PM asking for Gatorade.',
-  'big-l': 'Parking ticket plus a flat tire in the same hour.',
-  cooked: 'Chicken parm for five. Leftovers for none.',
-  dishes: 'Entire sink, no announcement.',
-  'couch-date': 'Couch reserved 7 to 10 PM. Movie unknown.',
-  mess: 'Three days of mugs on the coffee table.',
-  durf: 'Durfed in front of guests.'
-}
-
-const demoLedger = (today) => {
-  const ipo = addDays(today, -13)
-  let s = 11
-  const rnd = () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff
-    return s / 0x7fffffff
+const demoData = (today) => {
+  const ipo = addDays(today, -40)
+  const d = (n) => addDays(ipo, n)
+  const ledger = [
+    { day: d(7), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Dinner downtown. Home by eleven.', verdict: 'A clean first date after a quiet week. Full credit.', by: 'Noah' },
+    { day: d(10), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Second dinner. Same restaurant, which the committee notes.', verdict: 'Momentum.', by: 'Andrew' },
+    { day: d(12), name: 'Andrew', type: 'big-w', note: 'Offer letter signed.', verdict: 'Standard impact.', by: 'Noah' },
+    { day: d(15), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Hike. She brought snacks.', verdict: 'Third date inside two weeks.', by: 'Noah' },
+    { day: d(16), name: 'Bryon', type: 'date', partner: 'Sam', note: 'Coffee that turned into dinner.', verdict: 'First date on record.', by: 'James' },
+    { day: d(19), name: 'Bryon', type: 'date', partner: 'Lena', note: 'From the app. Bowling.', verdict: 'Three days after Sam. The ladder is unsentimental.', by: 'James' },
+    { day: d(20), name: 'James', type: 'hungover', note: 'Emerged at 1:40 PM asking for Gatorade.', verdict: 'Standard impact.', by: 'Bryon' },
+    { day: d(22), name: 'Jonas', type: 'girlfriend', note: 'Instagram-official as of this evening.', verdict: 'The ladder was climbed in order. Full marks.', by: 'Noah' },
+    { day: d(28), name: 'Andrew', type: 'mess', note: 'Three days of mugs on the coffee table.', verdict: 'Standard impact.', by: 'Jonas' },
+    { day: d(31), name: 'Noah', type: 'cooked', note: 'Chicken parm for five. Leftovers for none.', verdict: 'Standard impact.', by: 'Bryon' },
+    { day: d(37), name: 'James', type: 'ghosted', note: 'Last message delivered, unread, six days.', verdict: 'Standard impact.', by: 'Andrew' },
+    { day: d(39), name: 'Noah', type: 'date', partner: 'Priya', note: 'Museum, then tacos.', verdict: 'First date after a long quiet spell.', by: 'Jonas', ref: 'demo-s4' }
+  ]
+  const submissions = {
+    'demo-s1': { name: 'James', category: 'apartment', text: 'Did every dish in the sink without being asked.', day: today, by: 'Bryon', at: `${today}T18:20:00.000Z`, status: 'pending' },
+    'demo-s2': { name: 'Andrew', category: 'romance', text: 'Got a number at the farmers market. Unprompted.', day: addDays(today, -1), by: 'Noah', at: `${addDays(today, -1)}T21:02:00.000Z`, status: 'approved' },
+    'demo-s3': { name: 'Noah', category: 'other', text: 'Noah is simply the best roommate and deserves +40%.', day: addDays(today, -3), by: 'Anonymous', at: `${addDays(today, -3)}T23:40:00.000Z`, status: 'rejected' },
+    'demo-s4': { name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z`, status: 'approved' }
   }
-  const types = EVENT_TYPES.filter((t) => t.id !== 'other')
-  const out = []
-  for (let d = ipo; d <= today; d = addDays(d, 1)) {
-    const r = rnd()
-    const count = r < 0.45 ? 1 : r < 0.65 ? 2 : 0
-    for (let i = 0; i < count; i++) {
-      const t = types[Math.floor(rnd() * types.length)]
-      out.push({
-        day: d,
-        name: NAMES[Math.floor(rnd() * NAMES.length)],
-        type: t.id,
-        note: DEMO_NOTES[t.id] || '',
-        verdict: 'Standard impact applied; the facts matched the guide.',
-        by: NAMES[Math.floor(rnd() * NAMES.length)]
-      })
-    }
-  }
-  return { ipo, ledger: out }
+  return { ipo, ledger, submissions }
 }
 
 /* ---------- small hooks ---------- */
@@ -93,6 +89,11 @@ const load = (key, fallback) => {
   } catch {
     return fallback
   }
+}
+const save = (key, value) => {
+  try {
+    localStorage.setItem(key, value)
+  } catch {}
 }
 
 const parseHash = () => {
@@ -129,8 +130,6 @@ const useToday = () => {
   return today
 }
 
-// a counter that advances every half minute, so the countdown and the live
-// drift keep moving while the page sits open
 const useMinute = () => {
   const [n, setN] = useState(0)
   useEffect(() => {
@@ -191,6 +190,12 @@ const Chevron = () => (
   </svg>
 )
 
+const BackIcon = () => (
+  <svg width="9" height="15" viewBox="0 0 9 15" aria-hidden="true">
+    <path d="M7 1.5L1.5 7.5L7 13.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 const TabIcon = ({ kind, active }) => {
   const s = active ? 'var(--accent)' : 'var(--tab-idle)'
   if (kind === 'market')
@@ -200,7 +205,7 @@ const TabIcon = ({ kind, active }) => {
         <path d="M3.5 22.5h19" stroke={s} strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
-  if (kind === 'filings')
+  if (kind === 'events')
     return (
       <svg width="25" height="25" viewBox="0 0 26 26" aria-hidden="true">
         <rect x="5" y="3.5" width="16" height="19" rx="3.5" fill="none" stroke={s} strokeWidth="1.8" />
@@ -232,6 +237,11 @@ const Filing = ({ e, showName = true, onName }) => (
         <Delta pct={e.pct} />
       </div>
       {e.note ? <div className="filing-note">{e.note}</div> : null}
+      {e.auto ? (
+        <div className="filing-note" style={{ color: 'var(--ink-2)' }}>
+          <strong>Ladder:</strong> {e.auto}
+        </div>
+      ) : null}
       {e.verdict ? (
         <div className="filing-note" style={{ color: 'var(--ink-2)' }}>
           <strong>Committee:</strong> {e.verdict}
@@ -244,6 +254,55 @@ const Filing = ({ e, showName = true, onName }) => (
     </div>
   </div>
 )
+
+const STATUS_LABEL = { pending: 'Pending review', approved: 'Approved', filed: 'Filed', rejected: 'Rejected' }
+
+const Submission = ({ s, reviewer, onReview, filedEvent, onName }) => {
+  const cat = CATEGORY[s.category] || CATEGORY.other
+  return (
+    <div className="sub">
+      <Avatar name={s.name} size={36} />
+      <div className="sub-main">
+        <div className="sub-title">
+          <button type="button" className="link" style={{ font: 'inherit', fontWeight: 600 }} onClick={() => onName && onName(s.name)}>
+            {s.name}
+          </button>
+          <span style={{ color: 'var(--ink-2)', fontWeight: 500 }}>
+            {cat.emoji} {cat.label}
+            {s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}
+          </span>
+          <span className={`badge ${s.status}`}>{STATUS_LABEL[s.status] || s.status}</span>
+          {filedEvent ? <Delta pct={filedEvent.pct} /> : null}
+        </div>
+        <div className="sub-text">{s.text}</div>
+        <div className="sub-meta">
+          {fmtDay(s.day, { weekday: 'short', month: 'short', day: 'numeric' })} · reported by {s.by || 'Anonymous'}
+          {s.status === 'approved' && s.reviewedBy ? ` · approved by ${s.reviewedBy}` : ''}
+          {s.status === 'rejected' && s.reviewedBy ? ` · rejected by ${s.reviewedBy}` : ''}
+        </div>
+        {reviewer && (s.status === 'pending' || s.status === 'approved' || s.status === 'rejected') ? (
+          <div className="sub-actions">
+            {s.status !== 'approved' ? (
+              <button type="button" className="chip small" onClick={() => onReview(s.id, 'approved')}>
+                Approve
+              </button>
+            ) : null}
+            {s.status !== 'rejected' ? (
+              <button type="button" className="chip small" onClick={() => onReview(s.id, 'rejected')}>
+                Reject
+              </button>
+            ) : null}
+            {s.status !== 'pending' ? (
+              <button type="button" className="chip small" onClick={() => onReview(s.id, 'pending')}>
+                Undo
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
 
 const Report = ({ report }) => {
   if (!report) return null
@@ -266,9 +325,18 @@ const Report = ({ report }) => {
   )
 }
 
+const DbBanner = ({ error }) =>
+  error ? (
+    <div className="banner">
+      The database is not letting the exchange {error.kind === 'write' ? 'post' : 'read'} events yet
+      {error.message ? ` (${error.message})` : ''}. The Firebase rules need an <code>exchange</code> entry alongside{' '}
+      <code>reservations</code>, with read and write allowed.
+    </div>
+  ) : null
+
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go }) => {
+const MarketPage = ({ market, today, go, waiting }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
@@ -276,12 +344,7 @@ const MarketPage = ({ market, today, go }) => {
   const days = closedDays(market)
   const lastClose = days.length ? days[days.length - 1] : null
   const report = lastClose ? closingReport(market, lastClose) : null
-  const multi = NAMES.map((n) => ({
-    key: n,
-    label: TICKER[n],
-    color: `var(--c-${n})`,
-    points: priceSeries(market, n, today)
-  }))
+  const multi = NAMES.map((n) => ({ key: n, label: TICKER[n], color: `var(--c-${n})`, points: priceSeries(market, n, today) }))
   const tapeItems = ranked.map((n) => {
     const ch = dayChange(market, n, today)
     return (
@@ -317,12 +380,24 @@ const MarketPage = ({ market, today, go }) => {
               <Delta pct={idx.pct} abs={idx.abs} />
             </div>
           </div>
-          <Sparkline points={idxPts} color="var(--accent)" width={110} height={44} />
+          <Sparkline points={idxPts.slice(-30)} color="var(--accent)" width={110} height={44} />
         </div>
         <p className="hero-sub">
           Average of the five listings · combined market cap {fmtCap(NAMES.reduce((s, n) => s + marketCap(market.live[n]), 0))}
         </p>
       </div>
+
+      {waiting ? (
+        <button type="button" className="row card tight" style={{ minHeight: 0 }} onClick={() => go('events')}>
+          <div className="row-main">
+            <div className="row-title">
+              {waiting} {waiting === 1 ? 'event' : 'events'} awaiting the committee
+            </div>
+            <div className="row-sub">Rulings post at the close</div>
+          </div>
+          <Chevron />
+        </button>
+      ) : null}
 
       <div className="group">
         <div className="group-head">
@@ -381,7 +456,7 @@ const MarketPage = ({ market, today, go }) => {
         <div className="group-head">
           <span className="group-label">Latest filings</span>
           {events.length > 3 ? (
-            <button type="button" className="link" onClick={() => go('filings')}>
+            <button type="button" className="link" onClick={() => go('events')}>
               See all
             </button>
           ) : null}
@@ -391,9 +466,10 @@ const MarketPage = ({ market, today, go }) => {
             events.slice(0, 3).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
           ) : (
             <div className="empty">
-              No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
+              No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
+              {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
               <br />
-              Something happen? Report it to the committee.
+              Something happen? Report it on the Events tab.
             </div>
           )}
         </div>
@@ -402,8 +478,8 @@ const MarketPage = ({ market, today, go }) => {
       <Report report={report} />
 
       <p className="footnote center">
-        Prices are set by the Exchange's pricing committee from events reported by the household. Between filings the
-        board drifts up to ±{(NOISE * 100).toFixed(2)}% a day on market noise.
+        Nothing moves without a filing. A listing that goes {IDLE_GRACE_DAYS} days without one depreciates{' '}
+        {(IDLE_DECAY * 100).toFixed(1)}% a day until something happens.
       </p>
     </div>
   )
@@ -416,6 +492,7 @@ const TickerPage = ({ market, today, name, go }) => {
   const rank = rankings(market).indexOf(name) + 1
   const own = eventList(market).filter((e) => e.name === name)
   const firstDay = closedDays(market).filter((d) => d < today).length === 0
+  const idle = Math.max(0, Math.round((new Date(`${today}T00:00:00`) - new Date(`${market.lastFiling[name]}T00:00:00`)) / 86400000))
   return (
     <div className="stack">
       <div className="card">
@@ -452,75 +529,298 @@ const TickerPage = ({ market, today, name, go }) => {
           <div className="stat-value">{st.filings}</div>
         </div>
         <div className="stat">
+          <div className="stat-label">Quiet for</div>
+          <div className="stat-value" style={{ color: idle >= IDLE_GRACE_DAYS ? 'var(--down)' : undefined }}>
+            {idle} {idle === 1 ? 'day' : 'days'}
+          </div>
+        </div>
+        <div className="stat">
           <div className="stat-label">Days listed</div>
           <div className="stat-value">{st.daysListed}</div>
         </div>
-        <div className="stat">
-          <div className="stat-label">Shares</div>
-          <div className="stat-value">{SHARES.toLocaleString('en-US')}</div>
-        </div>
       </div>
+
+      <button type="button" className="primary slim" onClick={() => go(`report/${name}`)}>
+        Report something about {name}
+      </button>
 
       <div className="group">
         <div className="group-head">
           <span className="group-label">Filings</span>
         </div>
         <div className="list">
-          {own.length ? (
-            own.map((e) => <Filing key={e.key} e={e} showName={false} />)
-          ) : (
-            <div className="empty">No filings on record. A clean sheet, so far.</div>
-          )}
+          {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record. A clean sheet, so far.</div>}
         </div>
       </div>
 
       <p className="footnote center">
-        Shares outstanding: {SHARES.toLocaleString('en-US')}. Report something about {name} to the committee and the
-        board moves with the next release.
+        {idle >= IDLE_GRACE_DAYS
+          ? `${TICKER[name]} has been quiet for ${idle} days and is depreciating. A filing stops it.`
+          : `${TICKER[name]} starts depreciating after ${IDLE_GRACE_DAYS} quiet days. ${IDLE_GRACE_DAYS - idle} to go.`}
       </p>
     </div>
   )
 }
 
-const FilingsPage = ({ market, go }) => {
+const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast }) => {
   const events = eventList(market)
+  const pending = subs.filter((s) => s.status === 'pending')
+  const approved = subs.filter((s) => s.status === 'approved')
+  const resolved = subs.filter((s) => s.status === 'filed' || s.status === 'rejected')
   const byDay = []
   events.forEach((e) => {
     const last = byDay[byDay.length - 1]
     if (last && last.day === e.day) last.items.push(e)
     else byDay.push({ day: e.day, items: [e] })
   })
+  const filedBy = Object.fromEntries(events.filter((e) => e.ref).map((e) => [e.ref, e]))
+
+  const exportText = () => {
+    const lines = [`449 Exchange · events for the committee · as of ${fmtDay(today, { weekday: 'short', month: 'short', day: 'numeric' })}`, '']
+    if (!approved.length) lines.push('No approved events waiting.')
+    approved.forEach((s, i) => {
+      const cat = CATEGORY[s.category] || CATEGORY.other
+      lines.push(
+        `${i + 1}. [${s.id}] ${s.day} · ${s.name} · ${cat.label}${s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}`,
+        `   "${s.text}" — reported by ${s.by || 'Anonymous'}`
+      )
+    })
+    if (pending.length) lines.push('', `${pending.length} still pending review.`)
+    return lines.join('\n')
+  }
+
+  const copyExport = async () => {
+    try {
+      await navigator.clipboard.writeText(exportText())
+      onToast('Copied for the committee')
+    } catch {
+      onToast('Could not copy')
+    }
+  }
+
   return (
     <div className="stack">
-      <div className="card">
-        <h3 style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3 }}>How a filing happens</h3>
-        <p className="report-lede" style={{ marginTop: 6 }}>
-          Something happens to a roommate. Someone tells the committee. The committee rules on how big a deal it is,
-          publishes the filing with its reasoning, and the price moves. Rulings are final and occasionally petty.
-        </p>
-      </div>
-      {byDay.length ? (
-        byDay.map((g) => (
-          <div key={g.day} className="group">
-            <div className="group-head">
-              <span className="group-label">{fmtDay(g.day, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
-              <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-                {g.items.length} {g.items.length === 1 ? 'filing' : 'filings'}
-              </span>
-            </div>
-            <div className="list">
-              {g.items.map((e) => (
-                <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />
-              ))}
-            </div>
+      <button type="button" className="primary" onClick={() => go('report')}>
+        Report an event
+      </button>
+      <DbBanner error={dbError} />
+
+      {reviewer ? (
+        <div className="card tight">
+          <div className="row-title">Committee desk</div>
+          <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+            {pending.length} pending · {approved.length} approved and waiting for a ruling
           </div>
-        ))
-      ) : (
-        <div className="list">
-          <div className="empty">Nothing on file yet. Everyone is sitting at the IPO price, which will not last.</div>
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button type="button" className="chip" onClick={copyExport} disabled={!approved.length && !pending.length}>
+              Copy approved events
+            </button>
+          </div>
+          {approved.length ? (
+            <details className="plain" style={{ marginTop: 8 }}>
+              <summary>Preview the export</summary>
+              <div className="export">{exportText()}</div>
+            </details>
+          ) : null}
         </div>
-      )}
+      ) : null}
+
+      {pending.length ? (
+        <div className="group">
+          <div className="group-head">
+            <span className="group-label">Awaiting review</span>
+            <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+              {pending.length}
+            </span>
+          </div>
+          <div className="list">
+            {pending.map((s) => (
+              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} onName={(n) => go(`t/${n}`)} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {approved.length ? (
+        <div className="group">
+          <div className="group-head">
+            <span className="group-label">Approved · awaiting the ruling</span>
+            <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+              {approved.length}
+            </span>
+          </div>
+          <div className="list">
+            {approved.map((s) => (
+              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} onName={(n) => go(`t/${n}`)} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!pending.length && !approved.length && !dbError ? (
+        <div className="list">
+          <div className="empty">Nothing waiting on the committee. Something happen? Report it above.</div>
+        </div>
+      ) : null}
+
+      <div className="group">
+        <div className="group-head">
+          <span className="group-label">Filings</span>
+          <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+            {events.length} on record
+          </span>
+        </div>
+        {byDay.length ? (
+          byDay.map((g) => (
+            <div key={g.day} className="group" style={{ marginTop: 0 }}>
+              <div className="group-head">
+                <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
+                  {fmtDay(g.day, { weekday: 'long', month: 'long', day: 'numeric' })}
+                </span>
+              </div>
+              <div className="list">
+                {g.items.map((e) => (
+                  <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="list">
+            <div className="empty">Nothing on file yet. Everyone is sitting at the IPO price, which will not last.</div>
+          </div>
+        )}
+      </div>
+
+      {resolved.length ? (
+        <details className="plain">
+          <summary>
+            {resolved.length} resolved {resolved.length === 1 ? 'submission' : 'submissions'}
+          </summary>
+          <div className="list" style={{ marginTop: 8 }}>
+            {resolved.map((s) => (
+              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} filedEvent={filedBy[s.id]} onName={(n) => go(`t/${n}`)} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      <p className="footnote center">
+        Anyone can report. {REVIEWER} confirms the day's reports; the committee rules on the confirmed ones and the
+        board moves at the close.
+      </p>
     </div>
+  )
+}
+
+const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
+  const [name, setName] = useState(NAMES.includes(preset) ? preset : '')
+  const [category, setCategory] = useState('')
+  const [partner, setPartner] = useState('')
+  const [text, setText] = useState('')
+  const [day, setDay] = useState(today)
+  const [by, setBy] = useState(() => me || load('exchange.reporter', ''))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const ready = name && category && text.trim().length >= 3 && day >= market.ipo && day <= today
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!ready || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const who = by.trim() || 'Anonymous'
+      save('exchange.reporter', by.trim())
+      await onSubmit({
+        name,
+        category,
+        partner: category === 'date' ? partner.trim() : '',
+        text: text.trim(),
+        day,
+        by: who,
+        at: new Date().toISOString(),
+        status: 'pending'
+      })
+      go('events')
+    } catch (err) {
+      setError(err && err.message ? err.message : 'Could not post the event.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="stack" onSubmit={submit}>
+      <DbBanner error={dbError} />
+      <div className="field">
+        <span className="field-label">Listing</span>
+        <div className="chips">
+          {NAMES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`chip who-chip${name === n ? ' on' : ''}`}
+              style={{ '--chip-bg': COLOR[n], '--chip-ink': INK[n] }}
+              onClick={() => setName(n)}
+            >
+              <Avatar name={n} size={26} />
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <span className="field-label">What kind of thing</span>
+        <div className="chips">
+          {CATEGORIES.map((c) => (
+            <button key={c.id} type="button" className={`chip${category === c.id ? ' on' : ''}`} onClick={() => setCategory(c.id)}>
+              <span aria-hidden="true">{c.emoji}</span> {c.label}
+            </button>
+          ))}
+        </div>
+        {category === 'date' ? (
+          <input
+            className="input"
+            type="text"
+            placeholder="With whom? A name or initials (the ladder tracks repeat dates)"
+            value={partner}
+            onChange={(e) => setPartner(e.target.value)}
+          />
+        ) : null}
+      </div>
+
+      <div className="field">
+        <span className="field-label">What happened</span>
+        <textarea
+          className="input"
+          placeholder={name ? `What did ${name} do?` : 'What happened, in a sentence or two'}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </div>
+
+      <div className="field">
+        <span className="field-label">When</span>
+        <input className="input" type="date" min={market.ipo} max={today} value={day} onChange={(e) => setDay(e.target.value || today)} />
+      </div>
+
+      <div className="field">
+        <span className="field-label">Reported by</span>
+        <input className="input" type="text" placeholder="Your name (or stay anonymous)" value={by} onChange={(e) => setBy(e.target.value)} />
+      </div>
+
+      {error ? <div className="banner">{error}</div> : null}
+
+      <button type="submit" className="primary" disabled={!ready || busy}>
+        {busy ? 'Posting…' : 'Post to the Events page'}
+      </button>
+      <p className="footnote center">
+        It posts right away as pending. {REVIEWER} confirms it, the committee rules on it, and the price moves at the
+        close.
+      </p>
+    </form>
   )
 }
 
@@ -530,21 +830,84 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
       <h3>How the exchange works</h3>
       <p>
         Five listings, one per roommate. Everyone opened at {fmtMoney(IPO_PRICE)} on{' '}
-        {fmtDay(IPO, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, with{' '}
-        {SHARES.toLocaleString('en-US')} shares outstanding each.
+        {fmtDay(IPO, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, with {SHARES.toLocaleString('en-US')}{' '}
+        shares outstanding each.
       </p>
       <p>
-        Prices move on <strong>material events</strong>. Report what happened to the committee; it rules on the
-        impact, files the event with its reasoning, and the board updates with the next release.
+        Prices move on <strong>material events</strong>. Anyone reports one on the Events tab. {REVIEWER} confirms the
+        day's reports, the committee rules on the confirmed ones, and the board moves at the close.
       </p>
       <p>
-        Between filings, each listing drifts up to ±{(NOISE * 100).toFixed(2)}% a day on market noise, so the chart
-        breathes even on a quiet week. The drift is deterministic: every phone sees the same board.
+        Nothing happens, nothing moves. But a listing that goes <strong>{IDLE_GRACE_DAYS} days</strong> without a filing
+        depreciates {(IDLE_DECAY * 100).toFixed(1)}% a day for up to {IDLE_SPAN_DAYS} days (about{' '}
+        {Math.round((1 - Math.pow(1 - IDLE_DECAY, IDLE_SPAN_DAYS)) * 100)}% in all), then levels off until something
+        happens.
       </p>
       <p className="muted">
         No single filing may move a listing more than {PCT_LIMIT}%. No listing trades below $1.00. The committee may
-        depart from the guide below when the facts warrant it, and says so in the filing.
+        depart from the guides below when the facts warrant it, and says so in the filing.
       </p>
+    </div>
+
+    <div className="group">
+      <div className="group-head">
+        <span className="group-label">The dating ladder</span>
+      </div>
+      <div className="card tight">
+        <table className="ladder">
+          <tbody>
+            <tr>
+              <td>
+                First date
+                <span className="muted">Nobody else in the past {DATING.jugglingWindow} days</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.first, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                First date, juggling
+                <span className="muted">Someone new within {DATING.jugglingWindow} days of a date with someone else</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.juggling, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                Second date, same person
+                <span className="muted">Within {DATING.momentumWindow} days of the first</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.second, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                Third date
+                <span className="muted">Still inside the window</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.third, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                Fourth date and beyond
+                <span className="muted">Momentum, capped</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.steady, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                Rekindled
+                <span className="muted">A repeat date after more than {DATING.momentumWindow} days apart</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.rekindled, 0)}</td>
+            </tr>
+            <tr>
+              <td>
+                Made it official
+                <span className="muted">Filed separately, on top of the dates</span>
+              </td>
+              <td style={{ color: 'var(--up)' }}>{fmtPct(EVENT_TYPES.find((t) => t.id === 'girlfriend').pct, 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div className="group">
@@ -560,7 +923,9 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
                   {t.emoji}
                 </td>
                 <td>{t.label}</td>
-                <td style={{ color: t.pct > 0 ? 'var(--up)' : t.pct < 0 ? 'var(--down)' : undefined }}>{fmtPct(t.pct, 0)}</td>
+                <td style={{ color: t.auto ? 'var(--up)' : t.pct > 0 ? 'var(--up)' : t.pct < 0 ? 'var(--down)' : undefined }}>
+                  {t.auto ? `${t.range}%` : fmtPct(t.pct, 0)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -603,9 +968,7 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
       </a>
     </div>
 
-    <p className="footnote build-stamp">
-      449 Exchange · Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}
-    </p>
+    <p className="footnote build-stamp">449 Exchange · Build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</p>
   </div>
 )
 
@@ -614,23 +977,26 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
 export default function Exchange() {
   const [route, go] = useRoute()
   const today = useToday()
-  const tick = useMinute()
+  useMinute()
   const [photos, setPhotos] = useState({})
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
   const [toast, setToast] = useState('')
+  const [rawSubs, setRawSubs] = useState({})
+  const [dbError, setDbError] = useState(null)
   const bodyRef = useRef(null)
 
-  const source = useMemo(() => (DEMO ? demoLedger(today) : { ipo: IPO, ledger: LEDGER }), [today])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const market = useMemo(() => buildMarket(source.ledger, source.ipo, today, dayElapsed()), [source, today, tick])
+  // the roommate this phone is signed in as in the Couch App, if any
+  const me = load('couch.me', '')
+  const reviewer = DEMO || me === REVIEWER
+
+  const source = useMemo(() => (DEMO ? demoData(today) : { ipo: IPO, ledger: LEDGER }), [today])
+  const market = useMemo(() => buildMarket(source.ledger, source.ipo, today), [source, today])
 
   useEffect(() => {
     const root = document.documentElement
     if (theme === 'auto') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
-    try {
-      localStorage.setItem('couch.theme', theme)
-    } catch {}
+    save('couch.theme', theme)
   }, [theme])
 
   // profile photos are the ones the roommates set in the Couch App
@@ -650,6 +1016,23 @@ export default function Exchange() {
     return () => unsubscribe()
   }, [])
 
+  // submitted events live in the shared database so everyone sees them land
+  useEffect(() => {
+    if (DEMO) {
+      setRawSubs(source.submissions)
+      return
+    }
+    const unsubscribe = onValue(
+      ref(db, 'exchange/submissions'),
+      (snap) => {
+        setRawSubs(snap.exists() ? snap.val() : {})
+        setDbError(null)
+      },
+      (error) => setDbError({ kind: 'read', message: error && error.message })
+    )
+    return () => unsubscribe()
+  }, [source])
+
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0
     const name = route.page === 't' && NAMES.includes(route.arg) ? `${TICKER[route.arg]} · ` : ''
@@ -661,6 +1044,47 @@ export default function Exchange() {
     const id = setTimeout(() => setToast(''), 2200)
     return () => clearTimeout(id)
   }, [toast])
+
+  // a submission the ledger has ruled on is filed, whatever its stored status
+  const filedRefs = useMemo(() => new Set(market.events.map((e) => e.ref).filter(Boolean)), [market])
+  const subs = useMemo(
+    () =>
+      Object.entries(rawSubs || {})
+        .map(([id, s]) => ({ ...s, id, status: filedRefs.has(id) ? 'filed' : s.status || 'pending' }))
+        .filter((s) => NAMES.includes(s.name))
+        .sort((a, b) => (b.at || '').localeCompare(a.at || '')),
+    [rawSubs, filedRefs]
+  )
+  const waiting = subs.filter((s) => s.status === 'pending' || s.status === 'approved').length
+
+  const submitEvent = async (record) => {
+    if (DEMO) {
+      const id = `demo-${Date.now().toString(36)}`
+      setRawSubs((prev) => ({ ...prev, [id]: record }))
+      setToast('Posted (demo)')
+      return
+    }
+    try {
+      await push(ref(db, 'exchange/submissions'), record)
+      setToast('Posted. The committee rules at the close.')
+    } catch (error) {
+      setDbError({ kind: 'write', message: error && error.message })
+      throw error
+    }
+  }
+
+  const review = async (id, status) => {
+    const patch = { status, reviewedBy: me || REVIEWER, reviewedAt: new Date().toISOString() }
+    if (DEMO) {
+      setRawSubs((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+      return
+    }
+    try {
+      await update(ref(db, `exchange/submissions/${id}`), patch)
+    } catch (error) {
+      setDbError({ kind: 'write', message: error && error.message })
+    }
+  }
 
   const share = async () => {
     const url = `${location.origin}/exchange/`
@@ -675,20 +1099,17 @@ export default function Exchange() {
 
   const page = route.page
   const tickerName = page === 't' && NAMES.includes(route.arg) ? route.arg : null
-  const tab = page === 'filings' ? 'filings' : page === 'about' ? 'about' : 'market'
+  const reporting = page === 'report'
+  const tab = page === 'events' || reporting ? 'events' : page === 'about' ? 'about' : 'market'
   const mins = minutesToClose()
   const closesIn = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`
 
   const header = tickerName ? (
     <div className="head-row">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button type="button" className="back" onClick={() => go('')} aria-label="Back to the market">
-          <svg width="9" height="15" viewBox="0 0 9 15" aria-hidden="true">
-            <path d="M7 1.5L1.5 7.5L7 13.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Market
-        </button>
-      </div>
+      <button type="button" className="back" onClick={() => go('')} aria-label="Back to the market">
+        <BackIcon />
+        Market
+      </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ textAlign: 'right' }}>
           <h1 style={{ fontSize: 22 }}>{tickerName}</h1>
@@ -696,6 +1117,14 @@ export default function Exchange() {
         </div>
         <Avatar name={tickerName} size={44} />
       </div>
+    </div>
+  ) : reporting ? (
+    <div className="head-row">
+      <button type="button" className="back" onClick={() => go('events')} aria-label="Back to events">
+        <BackIcon />
+        Events
+      </button>
+      <h1 style={{ fontSize: 22 }}>Report an event</h1>
     </div>
   ) : (
     <div className="head-row">
@@ -709,7 +1138,7 @@ export default function Exchange() {
             </>
           ) : null}
         </div>
-        <h1>{tab === 'filings' ? 'Filings' : tab === 'about' ? 'About' : 'Market'}</h1>
+        <h1>{tab === 'events' ? 'Events' : tab === 'about' ? 'About' : 'Market'}</h1>
       </div>
       <span className="status" title="The board settles at midnight">
         <i className="pulse" aria-hidden="true" />
@@ -726,25 +1155,33 @@ export default function Exchange() {
         <main className="x-body" ref={bodyRef}>
           {tickerName ? (
             <TickerPage market={market} today={today} name={tickerName} go={go} />
-          ) : tab === 'filings' ? (
-            <FilingsPage market={market} go={go} />
+          ) : reporting ? (
+            <ReportPage market={market} today={today} me={me} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
+          ) : tab === 'events' ? (
+            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} />
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} />
           ) : (
-            <MarketPage market={market} today={today} go={go} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} />
           )}
         </main>
         <nav className="x-tabbar">
           {[
             { key: 'market', label: 'Market', path: '' },
-            { key: 'filings', label: 'Filings', path: 'filings' },
+            { key: 'events', label: 'Events', path: 'events' },
             { key: 'about', label: 'About', path: 'about' }
-          ].map((t) => (
-            <button key={t.key} type="button" className={`tab${tab === t.key && !tickerName ? ' on' : ''}`} onClick={() => go(t.path)}>
-              <TabIcon kind={t.key} active={tab === t.key && !tickerName} />
-              <span>{t.label}</span>
-            </button>
-          ))}
+          ].map((t) => {
+            const on = tab === t.key && !tickerName
+            return (
+              <button key={t.key} type="button" className={`tab${on ? ' on' : ''}`} onClick={() => go(t.path)}>
+                <TabIcon kind={t.key} active={on} />
+                {t.key === 'events' && reviewer && subs.some((s) => s.status === 'pending') ? (
+                  <i className="tab-dot" aria-label="Events waiting for review" />
+                ) : null}
+                <span>{t.label}</span>
+              </button>
+            )
+          })}
         </nav>
         {toast ? <div className="toast">{toast}</div> : null}
       </div>
