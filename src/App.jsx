@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, createContext, useContext } from 'react'
-import { db } from './firebase'
-import { ref, onValue, set, remove } from 'firebase/database'
+import { db, auth } from './firebase'
+import { ref, onValue, set, remove, get, update } from 'firebase/database'
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth'
+import { IPO as EXCHANGE_IPO } from './exchange/ledger.js'
 import './App.css'
 
 import { ROOMMATES, NAMES, COLOR, INK } from './roommates'
@@ -79,6 +81,21 @@ const load = (key, fallback) => {
   } catch {
     return fallback
   }
+}
+
+// where the 449 Exchange lives: its own Railway service when configured, else
+// the /exchange/ page of this same deploy
+const EXCHANGE_URL = import.meta.env.VITE_EXCHANGE_URL || '/exchange/'
+
+const describeAuthError = (e) => {
+  const code = (e && e.code) || ''
+  if (code === 'auth/operation-not-allowed')
+    return 'Google sign-in is not switched on in Firebase yet (Authentication → Sign-in method → Google).'
+  if (code === 'auth/unauthorized-domain')
+    return 'This address is not on the Firebase authorized domains list yet (Authentication → Settings → Authorized domains).'
+  if (code === 'auth/popup-closed-by-user') return 'The sign-in window was closed before finishing.'
+  if (code === 'auth/network-request-failed') return 'No connection. Try again in a moment.'
+  return (e && e.message) || 'Sign-in failed.'
 }
 
 /* ---------- small pieces ---------- */
@@ -288,9 +305,16 @@ export default function App() {
   const [asking, setAsking] = useState(null) // reservation id a release request is being written for
   const [askNote, setAskNote] = useState('')
 
-  const [me, setMe] = useState(() => load('couch.me', ''))
-  // once signed in, this phone belongs to that roommate: the name cannot be changed
-  const [locked, setLocked] = useState(() => load('couch.locked', '') === '1')
+  // Google sign-in. A signed-in account claims one roommate, for good; the
+  // claim lives in the database under members/{uid}, so it follows the account
+  // onto any phone.
+  const [user, setUser] = useState(undefined) // undefined while auth is still resolving
+  const [member, setMember] = useState(undefined) // undefined while loading, null when unclaimed
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [pick, setPick] = useState('')
+  const me = member ? member.name : ''
+  const locked = !!member
   const [photos, setPhotos] = useState({})
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoError, setPhotoError] = useState('')
@@ -327,6 +351,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!user) return undefined
     const resRef = ref(db, 'reservations')
     const unsubscribe = onValue(
       resRef,
@@ -340,7 +365,7 @@ export default function App() {
       }
     )
     return () => unsubscribe()
-  }, [])
+  }, [user])
 
   useEffect(() => {
     const unsubscribe = onValue(
@@ -362,10 +387,70 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('couch.locked', locked ? '1' : '')
-    } catch {}
-  }, [locked])
+    getRedirectResult(auth).catch((e) => setAuthError(describeAuthError(e)))
+    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u || null))
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setMember(user === null ? null : undefined)
+      return undefined
+    }
+    setMember(undefined)
+    const unsubscribe = onValue(
+      ref(db, `members/${user.uid}`),
+      (snap) => setMember(snap.exists() ? snap.val() : null),
+      (error) => {
+        console.error('Members error:', error)
+        setMember(null)
+      }
+    )
+    return () => unsubscribe()
+  }, [user])
+
+  // finished couch bookings become pending events on the exchange, the first
+  // time a roommate opens the app after the booking's day has ended. Ids are
+  // derived from the booking, so a booking is only ever filed once.
+  const [dayTick, setDayTick] = useState(() => dateKey(new Date()))
+  useEffect(() => {
+    const id = setInterval(() => setDayTick((t) => (dateKey(new Date()) === t ? t : dateKey(new Date()))), 60000)
+    return () => clearInterval(id)
+  }, [])
+  useEffect(() => {
+    if (!member || loading) return
+    const today = dayTick
+    const run = async () => {
+      try {
+        const snap = await get(ref(db, 'exchange/submissions'))
+        const existing = snap.exists() ? snap.val() : {}
+        const updates = {}
+        Object.entries(allReservations).forEach(([dStr, dayRes]) => {
+          if (dStr < EXCHANGE_IPO || dStr >= today) return
+          dayList(dayRes).forEach((res) => {
+            const id = `couch-${dStr}-${res.key}`
+            if (existing[id]) return
+            const when = rangeLabel(res.start, res.end)
+            const base = { name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), status: 'pending', source: 'couch' }
+            updates[`exchange/submissions/${id}`] =
+              res.type === 'date'
+                ? {
+                    ...base,
+                    category: 'date',
+                    partner: res.guestName || '',
+                    text: `Reserved the couch for a date with ${res.guestName || 'someone'}, ${when}.${res.details ? ` ${res.details}` : ''}`
+                  }
+                : { ...base, category: 'apartment', partner: '', text: `Hosted on the couch, ${when}: ${res.details || 'an event'}.` }
+          })
+        })
+        if (Object.keys(updates).length) await update(ref(db), updates)
+      } catch (error) {
+        console.error('Exchange sync:', error)
+      }
+    }
+    run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member, loading, dayTick])
 
   useEffect(() => {
     const root = document.documentElement
@@ -404,11 +489,44 @@ export default function App() {
     setAnchor(d)
   }
 
-  const lockIn = () => {
-    if (!me) return
-    if (!window.confirm(`Sign in as ${me} on this phone? This can't be changed afterwards.`)) return
-    setLocked(true)
+  const signIn = async () => {
+    setAuthBusy(true)
+    setAuthError('')
+    const provider = new GoogleAuthProvider()
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (e) {
+      const code = (e && e.code) || ''
+      // a home-screen app cannot always open a popup; fall back to a redirect
+      if (/popup-blocked|cancelled-popup-request|operation-not-supported/.test(code)) {
+        try {
+          await signInWithRedirect(auth, provider)
+          return
+        } catch (e2) {
+          setAuthError(describeAuthError(e2))
+        }
+      } else setAuthError(describeAuthError(e))
+    } finally {
+      setAuthBusy(false)
+    }
   }
+
+  const claim = async () => {
+    if (!user || !pick) return
+    if (!window.confirm(`Sign in as ${pick}? This Google account will be ${pick} for good.`)) return
+    setAuthError('')
+    try {
+      await set(ref(db, `members/${user.uid}`), { name: pick, email: user.email || '', at: new Date().toISOString() })
+    } catch (e) {
+      setAuthError(
+        /permission/i.test(e.message || '')
+          ? 'The database refused the claim. The rules need a members entry (see database.rules.json).'
+          : e.message
+      )
+    }
+  }
+
+  const logOut = () => signOut(auth).catch(() => {})
 
   const choosePhoto = async (file) => {
     if (!file || !me) return
@@ -481,8 +599,6 @@ export default function App() {
         endHour: Math.ceil(end / 60),
         timestamp: new Date().toISOString()
       })
-      // a booking made as this roommate makes this phone theirs for good
-      setLocked(true)
       setSheet(null)
     } catch (error) {
       alert('Error making reservation: ' + error.message)
@@ -942,37 +1058,16 @@ export default function App() {
       <div className="group">
         <div className="group-label">You</div>
         <div className="glass-list">
-          {locked ? (
-            <div className="list-row">
-              <Avatar name={me} size={36} />
-              <div className="res-main">
-                <span className="res-name">{me}</span>
-                <div className="res-time">Signed in on this phone</div>
-              </div>
+          <div className="list-row">
+            <Avatar name={me} size={36} />
+            <div className="res-main">
+              <span className="res-name">{me}</span>
+              <div className="res-time">{user && user.email ? user.email : 'Signed in with Google'}</div>
             </div>
-          ) : (
-            <div className="list-row column">
-              <span className="row-title">Your name</span>
-              <div className="chips">
-                {NAMES.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`chip${me === n ? ' on' : ''}`}
-                    style={me === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
-                    onClick={() => setMe(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-              {me ? (
-                <button type="button" className="primary slim" onClick={lockIn}>
-                  Sign in as {me}
-                </button>
-              ) : null}
-            </div>
-          )}
+            <button type="button" className="chip" onClick={logOut}>
+              Sign out
+            </button>
+          </div>
           {locked ? (
             <div className="list-row column">
               <span className="row-title">Profile photo</span>
@@ -1020,9 +1115,7 @@ export default function App() {
           </div>
         </div>
         <p className="footnote">
-          {locked
-            ? 'Your partner fills in automatically when you book a date. Leave it empty to be asked each time.'
-            : 'Pick your name and sign in to make this phone yours. After that the name is fixed and you can add a photo.'}
+          Your partner fills in automatically when you book a date. Leave it empty to be asked each time.
         </p>
       </div>
 
@@ -1043,7 +1136,7 @@ export default function App() {
       <div className="group">
         <div className="group-label">More</div>
         <div className="glass-list">
-          <a className="list-row rm-row" href={import.meta.env.VITE_EXCHANGE_URL || '/exchange/'}>
+          <a className="list-row rm-row" href={EXCHANGE_URL}>
             <span className="xchg-mark" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 18 18">
                 <path d="M2 13l4-5 3 3 4-6 3 3" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
@@ -1230,6 +1323,64 @@ export default function App() {
         : calMode === 'week'
           ? 'THIS WEEK'
           : anchor.getFullYear()
+
+  // nobody sees the calendar without a Google account that has claimed a roommate
+  const gate = user === null ? 'signin' : user && member === null ? 'claim' : user === undefined || member === undefined ? 'loading' : null
+  if (gate) {
+    return (
+      <PhotoContext.Provider value={photos}>
+        <div className="backdrop" aria-hidden="true" />
+        <div className="gate">
+          {gate === 'signin' ? (
+            <div className="gate-card">
+              <div className="splash-dots">
+                {ROOMMATES.map((r) => (
+                  <i key={r.name} className="dot big" style={{ background: r.color }} />
+                ))}
+              </div>
+              <div className="gate-title">449 Boyos</div>
+              <p className="gate-sub">The couch calendar is roommates only. Sign in with Google to open it.</p>
+              <button type="button" className="primary" onClick={signIn} disabled={authBusy}>
+                {authBusy ? 'Opening Google…' : 'Sign in with Google'}
+              </button>
+              {authError ? <p className="gate-error">{authError}</p> : null}
+              <a className="gate-link" href={EXCHANGE_URL}>
+                Just here for the market? Open the 449 Exchange
+              </a>
+            </div>
+          ) : gate === 'claim' ? (
+            <div className="gate-card">
+              <div className="gate-title">Who are you?</div>
+              <p className="gate-sub">
+                Signed in as {user.email}. Pick your name once: this Google account becomes that roommate for good.
+              </p>
+              <div className="chips center">
+                {NAMES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`chip${pick === n ? ' on' : ''}`}
+                    style={pick === n ? { background: COLOR[n], borderColor: COLOR[n], color: INK[n] } : undefined}
+                    onClick={() => setPick(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="primary" onClick={claim} disabled={!pick}>
+                {pick ? `I'm ${pick}` : 'Pick your name'}
+              </button>
+              {authError ? <p className="gate-error">{authError}</p> : null}
+              <button type="button" className="gate-link" onClick={logOut}>
+                Not a roommate? Sign out
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {splash !== 'gone' ? <Splash leaving={splash === 'out'} /> : null}
+      </PhotoContext.Provider>
+    )
+  }
 
   return (
     <PhotoContext.Provider value={photos}>

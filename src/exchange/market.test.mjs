@@ -23,7 +23,6 @@ import {
   addDays,
   daysBetween,
   fmtPct,
-  fmtCap,
   clampPct
 } from './market.js'
 
@@ -221,6 +220,5 @@ test('rankings, event list order and stats', () => {
 test('formatting helpers', () => {
   assert.equal(fmtPct(3.456), '+3.46%')
   assert.equal(fmtPct(0), '0.00%')
-  assert.equal(fmtCap(1020000), '$1.02M')
   assert.equal(daysBetween(IPO, '2026-08-31'), 30)
 })

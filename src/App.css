@@ -1436,3 +1436,71 @@ html {
   background: var(--accent);
   color: #fff;
 }
+
+/* ---- sign-in gate ---- */
+
+.gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 22px 22px;
+  border: 0.5px solid var(--glass-border);
+  border-radius: 28px;
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--glass-shadow);
+  text-align: center;
+}
+.gate-card .splash-dots {
+  margin: 0;
+}
+.gate-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+.gate-sub {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.gate-card .primary {
+  width: 100%;
+  margin-top: 4px;
+}
+.gate-card .primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.gate-error {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--pink-ink);
+}
+.gate-link {
+  margin-top: 4px;
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+.chips.center {
+  justify-content: center;
+}

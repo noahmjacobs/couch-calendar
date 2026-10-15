@@ -14,11 +14,29 @@ exchange's About tab).
 | Andrew | ANDW |
 | James | JAMS |
 
+## Who can see what
+
+- **The exchange is public.** Anyone with the link can watch the board and
+  report an event. No sign-in.
+- **The couch calendar is roommates only.** It asks for a Google sign-in; the
+  first time an account signs in it picks which roommate it is, and that
+  claim is permanent (stored under `members/{uid}`, so it follows the account
+  onto any phone). Without a sign-in the calendar shows only a sign-in screen
+  and a link to the exchange.
+- **The reviewer** is recognised the same way: on the exchange's Events tab,
+  "Roommate? Sign in with Google" signs Noah in, and the Approve and Reject
+  controls appear.
+
 ## The daily routine
 
 1. **Anyone reports an event** on the Events tab: pick the roommate, the kind
    of thing (date, romance, life, apartment, other), what happened, when, and
    who is reporting. It posts to the Events page immediately as *pending*.
+   **Couch bookings report themselves:** the first time a roommate opens the
+   Couch App after a booking's day has ended, that booking lands on the
+   Events page as a pending event tagged "Couch App" (a date booking carries
+   the guest's name). A booking for next Thursday shows up on Friday, never
+   before.
 2. **Noah confirms.** On Noah's phone (the one the Couch App is signed in as
    Noah) each pending event shows Approve and Reject. Approved events wait
    for the ruling.
@@ -33,47 +51,22 @@ exchange's About tab).
 
 ## How prices move
 
-**Nothing happens, nothing moves.** There is no daily noise.
+Nothing in the app explains the pricing, on purpose: like a real stock,
+nobody knows in advance how much an event is worth. A listing is the
+market's read on that roommate at any given moment, sometimes inflated,
+sometimes deflated. The committee weighs each confirmed event against the
+listing's history and what it means for it, and publishes its reasoning with
+the filing.
 
-**Depreciation.** A listing that goes **7 days** without a filing starts to
-depreciate **0.4% a day**, for up to 25 days (about −10% in all), then levels
-off until something happens. Any filing resets the clock.
-
-**The dating ladder.** A date's impact is worked out from the record, using
-the partner's name (or initials) on the filing:
-
-| Situation | Impact |
-|---|---|
-| First date, nobody else in the past 7 days | +10% |
-| First date with someone new within 7 days of a date with someone else ("juggling") | +5% |
-| Second date with the same person within 14 days of the first | +15% |
-| Third date, still inside the window | +18% |
-| Fourth date and beyond | +20% |
-| A repeat date after more than 14 days apart ("rekindled") | +10% |
-| Made it official (filed separately, on top of the dates) | +25% |
-
-**Everything else** follows the impact guide below. The committee may depart
-from any of this when the facts warrant it, and says so in the filing. No
+The engine does carry a private baseline the committee starts from (in
+`market.js`): nothing moves without a filing; a listing that goes 7 days
+without one depreciates 0.4% a day for up to 25 days, then levels off; dates
+climb a ladder (first date +10%, a first date with someone new within a week
+of another date +5%, second date with the same person inside two weeks +15%,
+third +18%, fourth and on +20%, a repeat after a long gap +10%, making it
+official +25%); and the other standard events have default impacts. Every
+filing carries the committee's own `pct`, which overrides all of it. No
 single filing moves a listing more than 40%; nothing trades below $1.00.
-
-### Impact guide
-
-| Event | Impact |
-|---|---|
-| 🌹 Went on a date | the ladder (+5 to +20%) |
-| 💘 Made it official | +25% |
-| 💋 First kiss | +8% |
-| 📱 Got a number | +2% |
-| 👻 Got ghosted | −6% |
-| 💔 Got dumped | −20% |
-| 🏆 Big W (job, grade, promotion) | +10% |
-| 💪 Gym PR or streak | +2% |
-| 🤢 Hungover past noon | −3% |
-| 🪦 Big L (fired, failed, totaled) | −10% |
-| 🍝 Cooked for the house | +3% |
-| 🧽 Did the dishes unprompted | +2% |
-| 🗑️ Left a mess for days | −3% |
-| 🚫 Durfed | −5% |
 
 ## Filing an event (for the committee)
 
@@ -132,28 +125,44 @@ the two services.
 
 ## Firebase
 
-The exchange uses the same Firebase project and Realtime Database as the
-Couch App, with the config already in `src/firebase.js`; there is nothing new
-to connect. Submitted events are stored under `exchange/submissions`. The
-database rules need an `exchange` entry with read and write allowed,
-alongside `reservations` and `profiles`:
+Both apps use the same Firebase project and Realtime Database
+(`couch-reservation`), with the config in `src/firebase.js`. The exchange
+stores submitted events under `exchange/submissions`; the Couch App stores
+reservations, profile photos and the roommate claims.
+
+**Google sign-in** needs two things switched on in the Firebase console:
+
+1. Authentication → Sign-in method → **Google** → Enable.
+2. Authentication → Settings → **Authorized domains** → add
+   `couch-calendar-production.up.railway.app` and
+   `449-exchange-production.up.railway.app` (and any custom domain).
+
+**Database rules** are checked in as `database.rules.json` and must be
+published in the console (Realtime Database → Rules), or with
+`npx firebase-tools deploy --only database` when the CLI is signed in:
 
 ```json
 {
   "rules": {
-    "reservations": { ".read": true, ".write": true },
-    "profiles": { ".read": true, ".write": true },
+    "reservations": { ".read": "auth != null", ".write": "auth != null" },
+    "profiles": { ".read": true, ".write": "auth != null" },
+    "members": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid && !data.exists()"
+      }
+    },
     "exchange": { ".read": true, ".write": true }
   }
 }
 ```
 
-The same rules are checked in as `database.rules.json`, so with the Firebase
-CLI signed in to the project they can be applied from a terminal with
-`npx firebase-tools deploy --only database`. Until the rule is in place the
-Events tab shows a banner saying the database refused the read or the write. Prices never depend on the database: they come
-from the ledger in the code. Profile photos are read from `profiles`, the same
-as the Couch App.
+Reservations are private to signed-in roommates. Profile photos stay readable
+by the public exchange but only a signed-in roommate can change them. A
+roommate claim can be written once and never changed. The exchange's
+submissions are open so anyone can report and the reviewer can act on them.
+Publish these rules together with the Couch App that asks for sign-in: the
+old Couch App cannot read reservations under them.
 
 ## What is in the app
 
@@ -163,18 +172,18 @@ as the Couch App.
   report.
 - **Ticker page**: the price, today's change, the full price chart (hover or
   arrow keys for a day's value; a table view underneath), stats including how
-  long the listing has been quiet, a button to report something about that
-  roommate, and that roommate's filings.
+  long the listing has been quiet and its last filing, a button to report
+  something about that roommate, and that roommate's filings.
 - **Events**: the report button, what is awaiting review and awaiting a
   ruling, every filing grouped by day with the ladder's reasoning and the
   committee's verdict, and resolved submissions. Noah also sees the committee
   desk with the export.
-- **About**: the rules, the dating ladder, the impact guide, a theme toggle
-  shared with the Couch App, a share button, and the link back to the
-  calendar.
+- **About**: how the exchange works in a paragraph (no numbers), a theme
+  toggle, a share button, and the link to the calendar.
 
 Add `?demo` to the URL (`/exchange/?demo`) to preview the board with a few
-weeks of made-up filings and submissions, with the reviewer controls on.
+weeks of made-up filings and submissions, with the reviewer controls on and
+no sign-in needed.
 Demo data never touches the real ledger or database.
 
 ## Code

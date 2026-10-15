@@ -11,7 +11,6 @@ import { NAMES } from '../roommates.js'
 /* ---------- listing ---------- */
 
 export const IPO_PRICE = 100
-export const SHARES = 10000 // shares outstanding per roommate, so $100 = a $1.0M market cap
 export const FLOOR_PRICE = 1 // nobody goes to zero, however bad the week
 
 export const TICKER = {
@@ -44,8 +43,9 @@ export const DATING = {
 
 /* ---------- material events: the standard impacts ---------- */
 
-// the committee's published guide. A filing can carry its own `pct` when the
-// facts call for more or less than the standard.
+// the committee's private baseline. Nothing here is shown in the app; every
+// filing carries the committee's own `pct`, and these are the defaults it
+// starts from when it has no reason to depart.
 export const EVENT_TYPES = [
   { id: 'date', group: 'Romance', emoji: '🌹', label: 'Went on a date', pct: null, auto: true, range: '+5 to +20' },
   { id: 'girlfriend', group: 'Romance', emoji: '💘', label: 'Made it official', pct: 25 },
@@ -112,14 +112,6 @@ export const fmtPct = (p, digits = 2) => `${p > 0 ? '+' : p < 0 ? '−' : ''}${M
 
 export const fmtSigned = (x) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmtMoney(Math.abs(x))}`
 
-export const fmtCap = (x) => {
-  if (x >= 1e9) return `$${(x / 1e9).toFixed(2)}B`
-  if (x >= 1e6) return `$${(x / 1e6).toFixed(2)}M`
-  if (x >= 1e3) return `$${(x / 1e3).toFixed(1)}K`
-  return fmtMoney(x)
-}
-
-export const marketCap = (price) => price * SHARES
 
 /* ---------- market record ---------- */
 

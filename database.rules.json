@@ -1,7 +1,13 @@
 {
   "rules": {
-    "reservations": { ".read": true, ".write": true },
-    "profiles": { ".read": true, ".write": true },
+    "reservations": { ".read": "auth != null", ".write": "auth != null" },
+    "profiles": { ".read": true, ".write": "auth != null" },
+    "members": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid && !data.exists()"
+      }
+    },
     "exchange": { ".read": true, ".write": true }
   }
 }

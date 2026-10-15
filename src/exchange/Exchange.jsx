@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
-import { db } from '../firebase'
+import { db, auth } from '../firebase'
 import { ref, onValue, push, update } from 'firebase/database'
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth'
 import { NAMES, COLOR, INK } from '../roommates.js'
 import { IPO, LEDGER } from './ledger.js'
 import {
@@ -8,20 +9,12 @@ import {
   INDEX_NAME,
   IPO_PRICE,
   EVENT_TYPES,
-  DATING,
-  IDLE_GRACE_DAYS,
-  IDLE_DECAY,
-  IDLE_SPAN_DAYS,
-  PCT_LIMIT,
-  SHARES,
   dateKey,
   addDays,
   fmtDay,
   fmtMoney,
   fmtPct,
   fmtSigned,
-  fmtCap,
-  marketCap,
   buildMarket,
   priceSeries,
   indexSeries,
@@ -46,9 +39,18 @@ const CATEGORIES = [
 ]
 const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
 
-// the household's reviewer. Honor system: the exchange trusts the name the
-// Couch App signed this phone in as.
+// the household's reviewer. Recognised by Google sign-in: the account that
+// claimed this roommate in the Couch App.
 const REVIEWER = 'Noah'
+
+const describeAuthError = (e) => {
+  const code = (e && e.code) || ''
+  if (code === 'auth/operation-not-allowed') return 'Google sign-in is not switched on in Firebase yet.'
+  if (code === 'auth/unauthorized-domain') return 'This address is not on the Firebase authorized domains list yet.'
+  if (code === 'auth/popup-closed-by-user') return 'The sign-in window was closed before finishing.'
+  if (code === 'auth/network-request-failed') return 'No connection. Try again in a moment.'
+  return (e && e.message) || 'Sign-in failed.'
+}
 
 // where the Couch App lives. On a shared domain it is the root; when the
 // exchange runs on its own Railway service, VITE_COUCH_URL points across.
@@ -241,11 +243,6 @@ const Filing = ({ e, showName = true, onName }) => (
         <Delta pct={e.pct} />
       </div>
       {e.note ? <div className="filing-note">{e.note}</div> : null}
-      {e.auto ? (
-        <div className="filing-note" style={{ color: 'var(--ink-2)' }}>
-          <strong>Ladder:</strong> {e.auto}
-        </div>
-      ) : null}
       {e.verdict ? (
         <div className="filing-note" style={{ color: 'var(--ink-2)' }}>
           <strong>Committee:</strong> {e.verdict}
@@ -276,6 +273,7 @@ const Submission = ({ s, reviewer, onReview, filedEvent, onName }) => {
             {s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}
           </span>
           <span className={`badge ${s.status}`}>{STATUS_LABEL[s.status] || s.status}</span>
+          {s.source === 'couch' ? <span className="badge">Couch App</span> : null}
           {filedEvent ? <Delta pct={filedEvent.pct} /> : null}
         </div>
         <div className="sub-text">{s.text}</div>
@@ -386,9 +384,7 @@ const MarketPage = ({ market, today, go, waiting }) => {
           </div>
           <Sparkline points={idxPts.slice(-30)} color="var(--accent)" width={110} height={44} />
         </div>
-        <p className="hero-sub">
-          Average of the five listings · combined market cap {fmtCap(NAMES.reduce((s, n) => s + marketCap(market.live[n]), 0))}
-        </p>
+        <p className="hero-sub">Average of the five listings. Everyone opened at {fmtMoney(IPO_PRICE)}.</p>
       </div>
 
       {waiting ? (
@@ -482,8 +478,7 @@ const MarketPage = ({ market, today, go, waiting }) => {
       <Report report={report} />
 
       <p className="footnote center">
-        Nothing moves without a filing. A listing that goes {IDLE_GRACE_DAYS} days without one depreciates{' '}
-        {(IDLE_DECAY * 100).toFixed(1)}% a day until something happens.
+        Prices are set by the Exchange's pricing committee from events the household reports. Rulings are final.
       </p>
     </div>
   )
@@ -507,9 +502,7 @@ const TickerPage = ({ market, today, name, go }) => {
           <div className="hero-value">{fmtMoney(market.live[name])}</div>
           <Delta pct={ch.pct} abs={ch.abs} big />
         </div>
-        <p className="hero-sub">
-          {firstDay ? 'Today, since the IPO' : "Today, vs yesterday's close"} · market cap {fmtCap(marketCap(market.live[name]))}
-        </p>
+        <p className="hero-sub">{firstDay ? 'Today, since the IPO' : "Today, vs yesterday's close"}</p>
         <PriceChart series={series} color={`var(--c-${name})`} title={`${TICKER[name]} price`} />
       </div>
 
@@ -534,13 +527,13 @@ const TickerPage = ({ market, today, name, go }) => {
         </div>
         <div className="stat">
           <div className="stat-label">Quiet for</div>
-          <div className="stat-value" style={{ color: idle >= IDLE_GRACE_DAYS ? 'var(--down)' : undefined }}>
+          <div className="stat-value">
             {idle} {idle === 1 ? 'day' : 'days'}
           </div>
         </div>
         <div className="stat">
-          <div className="stat-label">Days listed</div>
-          <div className="stat-value">{st.daysListed}</div>
+          <div className="stat-label">Last filing</div>
+          <div className="stat-value">{own.length ? fmtDay(own[0].day) : 'None'}</div>
         </div>
       </div>
 
@@ -557,16 +550,12 @@ const TickerPage = ({ market, today, name, go }) => {
         </div>
       </div>
 
-      <p className="footnote center">
-        {idle >= IDLE_GRACE_DAYS
-          ? `${TICKER[name]} has been quiet for ${idle} days and is depreciating. A filing stops it.`
-          : `${TICKER[name]} starts depreciating after ${IDLE_GRACE_DAYS} quiet days. ${IDLE_GRACE_DAYS - idle} to go.`}
-      </p>
+      <p className="footnote center">Report something about {name} and the committee rules on it at the close.</p>
     </div>
   )
 }
 
-const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast }) => {
+const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast, account }) => {
   const events = eventList(market)
   const pending = subs.filter((s) => s.status === 'pending')
   const approved = subs.filter((s) => s.status === 'approved')
@@ -709,6 +698,41 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
         </details>
       ) : null}
 
+      <div className="list">
+        {account.user && account.member ? (
+          <div className="row">
+            <Avatar name={account.member.name} size={32} />
+            <div className="row-main">
+              <div className="row-title">Signed in as {account.member.name}</div>
+              <div className="row-sub">{account.user.email}</div>
+            </div>
+            <button type="button" className="chip small" onClick={account.signOut}>
+              Sign out
+            </button>
+          </div>
+        ) : account.user ? (
+          <div className="row">
+            <div className="row-main">
+              <div className="row-title">Signed in, not a roommate yet</div>
+              <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+                Open the Couch App with this Google account to pick who you are.
+              </div>
+            </div>
+            <button type="button" className="chip small" onClick={account.signOut}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="row" onClick={account.signIn} disabled={account.busy}>
+            <div className="row-main">
+              <div className="row-title">Roommate? Sign in with Google</div>
+              <div className="row-sub">{REVIEWER} reviews the day's reports from here</div>
+            </div>
+            <Chevron />
+          </button>
+        )}
+      </div>
+      {account.error ? <div className="banner">{account.error}</div> : null}
       <p className="footnote center">
         Anyone can report. {REVIEWER} confirms the day's reports; the committee rules on the confirmed ones and the
         board moves at the close.
@@ -834,107 +858,18 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
       <h3>How the exchange works</h3>
       <p>
         Five listings, one per roommate. Everyone opened at {fmtMoney(IPO_PRICE)} on{' '}
-        {fmtDay(IPO, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, with {SHARES.toLocaleString('en-US')}{' '}
-        shares outstanding each.
+        {fmtDay(IPO, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}. A listing is the market's
+        read on that roommate at any given moment. Sometimes it runs hot, sometimes it does not.
       </p>
       <p>
-        Prices move on <strong>material events</strong>. Anyone reports one on the Events tab. {REVIEWER} confirms the
-        day's reports, the committee rules on the confirmed ones, and the board moves at the close.
-      </p>
-      <p>
-        Nothing happens, nothing moves. But a listing that goes <strong>{IDLE_GRACE_DAYS} days</strong> without a filing
-        depreciates {(IDLE_DECAY * 100).toFixed(1)}% a day for up to {IDLE_SPAN_DAYS} days (about{' '}
-        {Math.round((1 - Math.pow(1 - IDLE_DECAY, IDLE_SPAN_DAYS)) * 100)}% in all), then levels off until something
-        happens.
+        Prices move on <strong>material events</strong>. Anyone reports one on the Events tab. {REVIEWER} confirms
+        the day's reports, the committee weighs each one against the listing's history and what it means for it, and
+        the board moves at the close.
       </p>
       <p className="muted">
-        No single filing may move a listing more than {PCT_LIMIT}%. No listing trades below $1.00. The committee may
-        depart from the guides below when the facts warrant it, and says so in the filing.
+        How much any event is worth is for the committee to decide. Rulings are published with their reasoning and
+        are final.
       </p>
-    </div>
-
-    <div className="group">
-      <div className="group-head">
-        <span className="group-label">The dating ladder</span>
-      </div>
-      <div className="card tight">
-        <table className="ladder">
-          <tbody>
-            <tr>
-              <td>
-                First date
-                <span className="muted">Nobody else in the past {DATING.jugglingWindow} days</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.first, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                First date, juggling
-                <span className="muted">Someone new within {DATING.jugglingWindow} days of a date with someone else</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.juggling, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                Second date, same person
-                <span className="muted">Within {DATING.momentumWindow} days of the first</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.second, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                Third date
-                <span className="muted">Still inside the window</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.third, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                Fourth date and beyond
-                <span className="muted">Momentum, capped</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.steady, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                Rekindled
-                <span className="muted">A repeat date after more than {DATING.momentumWindow} days apart</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(DATING.rekindled, 0)}</td>
-            </tr>
-            <tr>
-              <td>
-                Made it official
-                <span className="muted">Filed separately, on top of the dates</span>
-              </td>
-              <td style={{ color: 'var(--up)' }}>{fmtPct(EVENT_TYPES.find((t) => t.id === 'girlfriend').pct, 0)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div className="group">
-      <div className="group-head">
-        <span className="group-label">Impact guide</span>
-      </div>
-      <div className="card tight">
-        <table className="impact-table">
-          <tbody>
-            {EVENT_TYPES.filter((t) => t.id !== 'other').map((t) => (
-              <tr key={t.id}>
-                <td style={{ width: 30 }} aria-hidden="true">
-                  {t.emoji}
-                </td>
-                <td>{t.label}</td>
-                <td style={{ color: t.auto ? 'var(--up)' : t.pct > 0 ? 'var(--up)' : t.pct < 0 ? 'var(--down)' : undefined }}>
-                  {t.auto ? `${t.range}%` : fmtPct(t.pct, 0)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
 
     <div className="group">
@@ -950,7 +885,7 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
           ))}
         </div>
         <p className="footnote" style={{ paddingTop: 12 }}>
-          Shared with the Couch App on this phone.
+          Automatic follows your phone's appearance setting.
         </p>
       </div>
     </div>
@@ -966,7 +901,7 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
       <a className="row" href={COUCH_URL} style={{ textDecoration: 'none' }}>
         <div className="row-main">
           <div className="row-title">Open the Couch App</div>
-          <div className="row-sub">Back to the calendar</div>
+          <div className="row-sub">Roommates only</div>
         </div>
         <Chevron />
       </a>
@@ -989,9 +924,55 @@ export default function Exchange() {
   const [dbError, setDbError] = useState(null)
   const bodyRef = useRef(null)
 
-  // the roommate this phone is signed in as in the Couch App, if any
-  const me = load('couch.me', '')
-  const reviewer = DEMO || me === REVIEWER
+  // Google sign-in. A signed-in account that claimed a roommate in the Couch
+  // App is that roommate here too; the reviewer's controls follow from that.
+  const [user, setUser] = useState(null)
+  const [member, setMember] = useState(null)
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const me = member ? member.name : ''
+  const reviewer = DEMO || (!!member && member.name === REVIEWER)
+
+  useEffect(() => {
+    getRedirectResult(auth).catch((e) => setAuthError(describeAuthError(e)))
+    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u || null))
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setMember(null)
+      return undefined
+    }
+    const unsubscribe = onValue(
+      ref(db, `members/${user.uid}`),
+      (snap) => setMember(snap.exists() ? snap.val() : null),
+      () => setMember(null)
+    )
+    return () => unsubscribe()
+  }, [user])
+
+  const signIn = async () => {
+    setAuthBusy(true)
+    setAuthError('')
+    const provider = new GoogleAuthProvider()
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (e) {
+      const code = (e && e.code) || ''
+      if (/popup-blocked|cancelled-popup-request|operation-not-supported/.test(code)) {
+        try {
+          await signInWithRedirect(auth, provider)
+          return
+        } catch (e2) {
+          setAuthError(describeAuthError(e2))
+        }
+      } else setAuthError(describeAuthError(e))
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+  const account = { user, member, busy: authBusy, error: authError, signIn, signOut: () => signOut(auth).catch(() => {}) }
 
   const source = useMemo(() => (DEMO ? demoData(today) : { ipo: IPO, ledger: LEDGER }), [today])
   const market = useMemo(() => buildMarket(source.ledger, source.ipo, today), [source, today])
@@ -1078,7 +1059,7 @@ export default function Exchange() {
   }
 
   const review = async (id, status) => {
-    const patch = { status, reviewedBy: me || REVIEWER, reviewedAt: new Date().toISOString() }
+    const patch = { status, reviewedBy: me || (DEMO ? REVIEWER : 'reviewer'), reviewedAt: new Date().toISOString() }
     if (DEMO) {
       setRawSubs((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
       return
@@ -1163,7 +1144,7 @@ export default function Exchange() {
           ) : reporting ? (
             <ReportPage market={market} today={today} me={me} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
-            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} />
+            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} account={account} />
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} />
           ) : (

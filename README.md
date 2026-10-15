@@ -2,6 +2,16 @@
 
 A simple shared calendar to reserve your apartment couch. No overbooking allowed!
 
+## Roommates only
+
+The calendar asks for a Google sign-in. The first time an account signs in it
+picks which roommate it is, and that choice is permanent for the account.
+Anyone without a sign-in sees only the sign-in screen and a link to the
+exchange. Google sign-in has to be enabled in the Firebase console and the
+site's domain added to the authorized domains; the database rules in
+`database.rules.json` keep reservations private. See
+[EXCHANGE.md](EXCHANGE.md) for the exact steps.
+
 ## Features
 
 - **Simple UI**: Just click a time slot to reserve it
