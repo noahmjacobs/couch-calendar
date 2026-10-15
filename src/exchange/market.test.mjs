@@ -19,6 +19,11 @@ import {
   eventList,
   tickerStats,
   sliceRange,
+  brindexSeries,
+  brindexValue,
+  brindexChange,
+  brindexMove,
+  BRINDEX_STEP,
   addDays,
   daysBetween,
   fmtPct,
@@ -194,4 +199,35 @@ test('a withdrawal hides a report without moving anything', () => {
   assert.deepEqual(m.withdrawn, ['sub-1'])
   assert.equal(m.events.length, 1)
   assert.equal(m.live.Noah, 105)
+})
+
+test('the Brindex opens at the IPO price and steps with each report', () => {
+  const none = brindexSeries({}, IPO, d(3))
+  assert.equal(none.length, 5) // IPO point, three closes, today
+  assert.ok(none.every((p) => p.price === IPO_PRICE))
+  // it lines up point for point with a listing's series, so the two share a chart
+  const m = buildMarket([{ day: d(1), name: 'Noah', pct: 3 }], IPO, d(3))
+  assert.deepEqual(none.map((p) => p.day), priceSeries(m, 'Noah', d(3)).map((p) => p.day))
+  const reports = {
+    r1: { day: d(2), ratings: { Noah: 10, Bryon: 10, Jonas: 10, Andrew: 10, James: 10 }, by: 'Britta', at: 'a' },
+    r2: { day: d(9), ratings: { Noah: 5, Bryon: 5, Jonas: 5, Andrew: 5, James: 5 }, by: 'Britta', at: 'b' },
+    r3: { day: d(16), ratings: { Noah: 0, Bryon: 0, Jonas: 0, Andrew: 0, James: 0 }, by: 'Britta', at: 'c' }
+  }
+  assert.equal(brindexMove(reports.r1.ratings), BRINDEX_STEP)
+  assert.equal(brindexMove(reports.r2.ratings), 0)
+  assert.equal(brindexMove(reports.r3.ratings), -BRINDEX_STEP)
+  const s = brindexSeries(reports, IPO, d(20))
+  const on = (k) => s.find((p) => p.day === d(k) && !p.label).price
+  assert.equal(on(1), 100)
+  assert.equal(on(2), 110) // the day of the first report
+  assert.equal(on(9), 110) // flat through the neutral report
+  assert.equal(on(16), 99) // 110 * 0.9
+  assert.equal(s[s.length - 1].live, true)
+  assert.equal(brindexValue(reports, IPO, d(20)), 99)
+  const ch = brindexChange(reports, IPO, d(20))
+  assert.equal(ch.prev, 110)
+  assert.equal(ch.pct, -10)
+  assert.equal(ch.report.id, 'r3')
+  // a partial report counts the ratings it has
+  assert.ok(Math.abs(brindexMove({ Noah: 8, Bryon: 8 }) - 0.06) < 1e-9)
 })

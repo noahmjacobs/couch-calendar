@@ -35,6 +35,66 @@ export const IDLE_MAX_WEEKS = 4
 
 export const PCT_LIMIT = 40 // no single filing moves a listing more than this
 
+/* ---------- the Brindex ---------- */
+
+// Britta's weekly read on the household: one rating per roommate, 0 to 10.
+// The index opens at the IPO price and moves with each report: the average
+// rating above the midpoint pushes it up, below pulls it down, at most
+// BRINDEX_STEP per report. Nothing moves it between reports.
+export const BRINDEX_NAME = 'Brindex'
+export const BRINDEX_MAX = 10
+export const BRINDEX_STEP = 0.1
+
+export const brindexReports = (raw) =>
+  Object.entries(raw || {})
+    .map(([id, r]) => ({ ...r, id }))
+    .filter((r) => r && r.ratings && typeof r.ratings === 'object' && r.day)
+    .sort((a, b) => a.day.localeCompare(b.day) || (a.at || '').localeCompare(b.at || ''))
+
+export const brindexAverage = (ratings) => {
+  const vals = NAMES.map((n) => Number(ratings[n])).filter((v) => Number.isFinite(v))
+  if (!vals.length) return BRINDEX_MAX / 2
+  return vals.reduce((a, b) => a + b, 0) / vals.length
+}
+
+export const brindexMove = (ratings) => ((brindexAverage(ratings) - BRINDEX_MAX / 2) / (BRINDEX_MAX / 2)) * BRINDEX_STEP
+
+// one point per trading day, aligned with the price series: the value holds
+// between reports and steps on the day a report comes in
+// same shape as priceSeries so both can share a chart: an IPO point, one close
+// per day, then today's live value. A report counts from the day it was sent.
+export const brindexSeries = (reports, ipo, today) => {
+  const sorted = brindexReports(reports)
+  const pts = [{ day: ipo, price: IPO_PRICE, label: 'IPO' }]
+  let value = IPO_PRICE
+  let i = 0
+  let day = ipo
+  while (day <= today) {
+    while (i < sorted.length && (sorted[i].day < ipo ? ipo : sorted[i].day) <= day) {
+      value = Math.max(FLOOR_PRICE, round2(value * (1 + brindexMove(sorted[i].ratings))))
+      i++
+    }
+    pts.push(day < today ? { day, price: value } : { day, price: value, live: true })
+    day = addDays(day, 1)
+  }
+  return pts
+}
+
+export const brindexValue = (reports, ipo, today) => {
+  const s = brindexSeries(reports, ipo, today)
+  return s[s.length - 1].price
+}
+
+// the move the latest report made, against the value before it
+export const brindexChange = (reports, ipo, today) => {
+  const sorted = brindexReports(reports)
+  const now = brindexValue(reports, ipo, today)
+  if (!sorted.length) return { abs: 0, pct: 0, prev: now, now, report: null }
+  const last = sorted[sorted.length - 1]
+  const before = brindexValue(sorted.slice(0, -1), ipo, today)
+  return { abs: round2(now - before), pct: before ? round2(((now - before) / before) * 100) : 0, prev: before, now, report: last }
+}
+
 /* ---------- categories: flavour only ---------- */
 
 export const CATEGORIES = [

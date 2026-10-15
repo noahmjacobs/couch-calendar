@@ -60,6 +60,24 @@ of the same app, for roommates only.
    reasoning, and pushes. The deploy moves the board, and each filing's
    `ref` marks its submission as filed.
 
+## The Brindex
+
+A second index next to the BOYO 5, from the household's friend Britta.
+Once a week someone sends her the form at `/#/brindex` (the You tab and the
+market page have a "Send Britta the form" button that shares the link). The
+form is one slider per roommate, 0 to 10, an optional comment, Submit;
+under a minute.
+
+The index opens at 100 on the IPO date and moves with each report: the
+average rating above 5 pushes it up, below 5 pulls it down, at most 10% per
+report (an average of 7.5 is +5%, of 2.5 is −5%). Nothing moves it between
+reports. The index value is public; her per-roommate ratings and comment
+show only to signed-in roommates, in the "Latest Brindex report" card on
+the market page. Both indexes can be added to the market chart with the
+BOYO 5 and Brindex pills, drawn dashed next to the listings. Reports are
+stored under `exchange/brindex`; a bad one can be deleted by Noah's account
+or hidden by the committee like any report.
+
 ## How prices move
 
 Nothing in the app explains the pricing, on purpose: like a real stock,
@@ -152,6 +170,11 @@ published in the console (Realtime Database → Rules), or with
         "$id": {
           ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
         }
+      },
+      "brindex": {
+        "$id": {
+          ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
+        }
       }
     }
   }
@@ -168,10 +191,11 @@ old Couch App cannot read reservations under them.
 
 ## What is in the app
 
-- **Market**: ticker tape, the BOYO 5 index (the average of the five), the
-  ranked listings with sparklines and today's change, a chart of any mix of
-  listings over 1W, 1M, 1Y or all time, and for roommates a collapsible list
-  of filings and the previous day's closing report.
+- **Market**: ticker tape, the BOYO 5 index (the average of the five) and
+  the Brindex side by side, the ranked listings with sparklines and today's
+  change, a chart of any mix of listings and indexes over 1W, 1M, 1Y or all
+  time, and for roommates the latest Brindex report, each roommate's event
+  history, and the previous day's closing report.
 - **Ticker page**: the price, today's change, the full price chart (hover or
   arrow keys for a day's value; a table view underneath), stats including how
   long the listing has been quiet and its last filing, a button to report

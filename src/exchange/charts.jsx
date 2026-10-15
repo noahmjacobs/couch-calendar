@@ -213,10 +213,13 @@ export const PriceChart = ({ series, color, height = 220, title = 'Price' }) => 
 /* ---------- every listing on one axis ---------- */
 
 // series: [{ key, label, color, points: [{day, price}] }], all on the same days
-export const MultiChart = ({ series, height = 240 }) => {
+export const MultiChart = ({ series: input, height = 240 }) => {
+  let series = input
   const [width, setWidth] = useState(340)
+  // every series ends today; if one is shorter, line them all up on the end
+  const n = Math.min(...series.map((s) => s.points.length))
+  series = series.map((s) => (s.points.length === n ? s : { ...s, points: s.points.slice(-n) }))
   const days = series[0].points.map((p) => p.day)
-  const n = days.length
   const { idx, setIdx, onMove, onKey } = useHover(n)
   const measure = (el) => {
     if (el && el.clientWidth && el.clientWidth !== width) setWidth(el.clientWidth)
@@ -286,6 +289,7 @@ export const MultiChart = ({ series, height = 240 }) => {
               fill="none"
               style={{ stroke: s.color }}
               strokeWidth="2"
+              strokeDasharray={s.dashed ? '5 4' : undefined}
               strokeLinecap="round"
               strokeLinejoin="round"
             />

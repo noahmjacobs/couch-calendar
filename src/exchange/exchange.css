@@ -33,6 +33,9 @@
   --c-Jonas: #d98200;
   --c-Andrew: #bf5af2;
   --c-James: #ff375f;
+  /* the indexes: a quiet gray for the BOYO 5, teal for the Brindex */
+  --c-boyo: #6e6e73;
+  --c-brindex: #1f9fb5;
   --app-bg:
     radial-gradient(120% 70% at 8% 0%, var(--bg-1) 0%, transparent 58%),
     radial-gradient(95% 60% at 100% 12%, var(--bg-2) 0%, transparent 55%),
@@ -64,6 +67,8 @@
   --down-soft: rgba(255, 69, 58, 0.18);
   --c-Bryon: #30d158;
   --c-Jonas: #ff9f0a;
+  --c-boyo: #aeaeb2;
+  --c-brindex: #40c8e0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -91,6 +96,8 @@
     --down-soft: rgba(255, 69, 58, 0.18);
     --c-Bryon: #30d158;
     --c-Jonas: #ff9f0a;
+    --c-boyo: #aeaeb2;
+    --c-brindex: #40c8e0;
   }
 }
 
@@ -1349,4 +1356,157 @@ details.person > summary.row {
 }
 .person-events .filing {
   padding-left: 22px;
+}
+
+/* ---- indexes ---- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.tile .tile-value {
+  font-size: 28px;
+}
+.tile .spark {
+  margin-top: 2px;
+}
+.tile-sub {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+.pick.index {
+  padding-left: 10px;
+}
+.pick-key {
+  width: 14px;
+  height: 0;
+  border-top: 2px dashed currentColor;
+  color: var(--pick);
+  background: none !important;
+}
+.legend-item i.dashed {
+  height: 0;
+  background: none !important;
+  border-top: 2px dashed var(--swatch, var(--ink-2));
+}
+.ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rating-name {
+  width: 64px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.meter {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.rating-value {
+  width: 40px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ---- the Brindex form ---- */
+
+.rate {
+  padding: 12px 14px 8px;
+  border-bottom: 0.5px solid var(--hair);
+}
+.list > .rate:last-child {
+  border-bottom: none;
+}
+.rate-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rate-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.rate-value small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 40px;
+  margin: 2px 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--fill-color) 0%, var(--fill-color) var(--pct), var(--fill) var(--pct), var(--fill) 100%);
+}
+.slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--fill);
+}
+.slider::-moz-range-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--fill-color);
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -10px;
+  border-radius: 14px;
+  border: none;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+.slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: none;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.slider-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }

@@ -18,6 +18,11 @@
         "$id": {
           ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
         }
+      },
+      "brindex": {
+        "$id": {
+          ".write": "!data.exists() || (auth != null && root.child('claims/Noah').val() == auth.uid)"
+        }
       }
     }
   }

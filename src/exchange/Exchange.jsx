@@ -29,7 +29,13 @@ import {
   tickerStats,
   closedDays,
   closingReport,
-  sliceRange
+  sliceRange,
+  brindexSeries,
+  brindexChange,
+  brindexReports,
+  brindexAverage,
+  BRINDEX_NAME,
+  BRINDEX_MAX
 } from './market.js'
 import { Sparkline, PriceChart, MultiChart } from './charts.jsx'
 
@@ -73,7 +79,13 @@ const demoData = (today) => {
     'demo-s4': { names: ['Noah'], name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z` },
     'demo-s5': { names: NAMES, name: 'Noah', category: 'social', text: 'All five went to trivia at the bar. Came third.', day: addDays(today, -1), by: 'Couch App', at: `${addDays(today, -1)}T23:00:00.000Z`, source: 'couch' }
   }
-  return { ipo, ledger, submissions }
+  const brindex = {
+    b1: { day: d(5), ratings: { Noah: 6, Bryon: 5, Jonas: 7, Andrew: 6, James: 4 }, comment: 'Solid week. James needs to text people back.', by: 'Britta', at: `${d(5)}T19:00:00.000Z` },
+    b2: { day: d(12), ratings: { Noah: 7, Bryon: 4, Jonas: 9, Andrew: 7, James: 5 }, comment: 'Jonas is glowing. Bryon, where are you.', by: 'Britta', at: `${d(12)}T19:00:00.000Z` },
+    b3: { day: d(26), ratings: { Noah: 8, Bryon: 6, Jonas: 8, Andrew: 5, James: 7 }, comment: 'Game night redeemed everyone.', by: 'Britta', at: `${d(26)}T19:00:00.000Z` },
+    b4: { day: d(33), ratings: { Noah: 7, Bryon: 6, Jonas: 7, Andrew: 4, James: 6 }, comment: 'Andrew left the mugs again.', by: 'Britta', at: `${d(33)}T19:00:00.000Z` }
+  }
+  return { ipo, ledger, submissions, brindex }
 }
 
 /* ---------- small hooks ---------- */
@@ -139,16 +151,32 @@ const useChartView = (key) => {
     }
   })
   const [range, setRange] = useState(() => (RANGES.some((r) => r.id === load(`exchange.view.${key}.range`, '')) ? load(`exchange.view.${key}.range`, 'all') : 'all'))
+  const [indexes, setIndexes] = useState(() => {
+    try {
+      const v = JSON.parse(load(`exchange.view.${key}.indexes`, '[]'))
+      return Array.isArray(v) ? v.filter((x) => INDEXES.some((ix) => ix.id === x)) : []
+    } catch {
+      return []
+    }
+  })
   useEffect(() => save(`exchange.view.${key}.picked`, JSON.stringify(picked)), [key, picked])
   useEffect(() => save(`exchange.view.${key}.range`, range), [key, range])
+  useEffect(() => save(`exchange.view.${key}.indexes`, JSON.stringify(indexes)), [key, indexes])
+  const toggleIndex = (id) => setIndexes((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
   const toggle = (name) =>
     setPicked((p) => {
       if (p.length === NAMES.length) return [name] // from "all", tapping one isolates it
       if (p.includes(name)) return p.length === 1 ? NAMES : p.filter((n) => n !== name)
       return NAMES.filter((n) => p.includes(n) || n === name)
     })
-  return { picked, toggle, all: () => setPicked(NAMES), range, setRange }
+  return { picked, toggle, all: () => setPicked(NAMES), range, setRange, indexes, toggleIndex }
 }
+
+// the two indexes a chart can carry alongside the listings
+const INDEXES = [
+  { id: 'boyo', label: INDEX_NAME, color: 'var(--c-boyo)' },
+  { id: 'brindex', label: BRINDEX_NAME, color: 'var(--c-brindex)' }
+]
 
 /* ---------- pieces ---------- */
 
@@ -216,6 +244,15 @@ const ChartControls = ({ view, listings = true }) => (
             <button key={n} type="button" className={`pick${on ? ' on' : ''}`} style={{ '--pick': `var(--c-${n})` }} onClick={() => view.toggle(n)} aria-pressed={on} title={n}>
               <Avatar name={n} size={26} />
               <span>{TICKER[n]}</span>
+            </button>
+          )
+        })}
+        {INDEXES.map((ix) => {
+          const on = view.indexes.includes(ix.id)
+          return (
+            <button key={ix.id} type="button" className={`pick index${on ? ' on' : ''}`} style={{ '--pick': ix.color }} onClick={() => view.toggleIndex(ix.id)} aria-pressed={on} title={`${ix.label} index`}>
+              <i className="pick-key" style={{ background: ix.color }} />
+              <span>{ix.label}</span>
             </button>
           )
         })}
@@ -392,21 +429,33 @@ const AccountRow = ({ account }) =>
 
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go, waiting, insider, view }) => {
+const MarketPage = ({ market, today, go, waiting, insider, view, brindex, onShareBrindex }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
+  const bdx = brindexChange(brindex, market.ipo, today)
+  const bdxSeries = brindexSeries(brindex, market.ipo, today)
+  const latest = bdx.report
   const events = eventList(market)
   const days = closedDays(market)
   const lastClose = days.length ? days[days.length - 1] : null
   const report = lastClose ? closingReport(market, lastClose) : null
   const windowDays = rangeDays(view.range)
-  const series = view.picked.map((n) => ({
-    key: n,
-    label: TICKER[n],
-    color: `var(--c-${n})`,
-    points: sliceRange(priceSeries(market, n, today), today, windowDays)
-  }))
+  const series = [
+    ...view.picked.map((n) => ({
+      key: n,
+      label: TICKER[n],
+      color: `var(--c-${n})`,
+      points: sliceRange(priceSeries(market, n, today), today, windowDays)
+    })),
+    ...INDEXES.filter((ix) => view.indexes.includes(ix.id)).map((ix) => ({
+      key: ix.id,
+      label: ix.label,
+      color: ix.color,
+      dashed: true,
+      points: sliceRange(ix.id === 'boyo' ? indexSeries(market, today) : bdxSeries, today, windowDays)
+    }))
+  ]
   const tapeItems = ranked.map((n) => {
     const ch = dayChange(market, n, today)
     return (
@@ -434,19 +483,69 @@ const MarketPage = ({ market, today, go, waiting, insider, view }) => {
         </div>
       </div>
 
-      <div className="card">
-        <div className="tile-label">{INDEX_NAME} Index</div>
-        <div className="tile-row">
-          <div>
-            <div className="tile-value">{idx.now.toFixed(2)}</div>
-            <div style={{ marginTop: 6 }}>
-              <Delta pct={idx.pct} abs={idx.abs} />
-            </div>
-          </div>
-          <Sparkline points={idxPts.slice(-30)} color="var(--accent)" width={110} height={44} />
+      <div className="tiles">
+        <div className="card tight tile">
+          <div className="tile-label">{INDEX_NAME}</div>
+          <div className="tile-value">{idx.now.toFixed(2)}</div>
+          <Delta pct={idx.pct} abs={idx.abs} />
+          <Sparkline points={idxPts.slice(-30)} color="var(--c-boyo)" width={120} height={34} />
+          <p className="tile-sub">The five listings, averaged.</p>
         </div>
-        <p className="hero-sub">Average of the five listings. Everyone opened at {fmtMoney(IPO_PRICE)}.</p>
+        <div className="card tight tile">
+          <div className="tile-label">{BRINDEX_NAME}</div>
+          <div className="tile-value">{bdx.now.toFixed(2)}</div>
+          <Delta pct={bdx.pct} abs={bdx.abs} />
+          <Sparkline points={bdxSeries.map((p) => p.price).slice(-30)} color="var(--c-brindex)" width={120} height={34} />
+          <p className="tile-sub">{latest ? `Britta's read, last ${fmtDay(latest.day)}.` : "Britta's read. No report yet."}</p>
+        </div>
       </div>
+
+      {insider && latest ? (
+        <div className="card">
+          <div className="report-head">
+            <h3>Latest {BRINDEX_NAME} report</h3>
+            <span className="report-when">{fmtDay(latest.day, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+          </div>
+          <div className="ratings">
+            {ranked.map((n) => {
+              const r = Number(latest.ratings[n])
+              const v = Number.isFinite(r) ? r : null
+              return (
+                <div key={n} className="rating-row">
+                  <Avatar name={n} size={26} />
+                  <span className="rating-name">{n}</span>
+                  <span className="meter" aria-hidden="true">
+                    <i style={{ width: `${((v == null ? 0 : v) / BRINDEX_MAX) * 100}%`, background: `var(--c-${n})` }} />
+                  </span>
+                  <span className="rating-value num">{v == null ? '–' : `${v}/${BRINDEX_MAX}`}</span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="report-lede" style={{ marginTop: 10 }}>
+            Average {brindexAverage(latest.ratings).toFixed(1)} of {BRINDEX_MAX}
+            {latest.comment ? ` · “${latest.comment}”` : ''}
+            {latest.by ? ` — ${latest.by}` : ''}
+          </p>
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button type="button" className="chip small" onClick={onShareBrindex}>
+              Send Britta this week's form
+            </button>
+          </div>
+        </div>
+      ) : insider ? (
+        <div className="card tight">
+          <div className="row-title">No {BRINDEX_NAME} report yet</div>
+          <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+            Send Britta the form once a week and the index starts moving.
+          </div>
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button type="button" className="chip small" onClick={onShareBrindex}>
+              Send Britta the form
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {waiting && insider ? (
         <button type="button" className="row card tight" style={{ minHeight: 0 }} onClick={() => go('events')}>
@@ -513,6 +612,12 @@ const MarketPage = ({ market, today, go, waiting, insider, view }) => {
                   <i style={{ background: `var(--c-${n})` }} />
                   <Avatar name={n} size={18} />
                   {n}
+                </span>
+              ))}
+              {INDEXES.filter((ix) => view.indexes.includes(ix.id)).map((ix) => (
+                <span key={ix.id} className="legend-item">
+                  <i className="dashed" style={{ '--swatch': ix.color }} />
+                  {ix.label}
                 </span>
               ))}
             </div>
@@ -890,6 +995,104 @@ const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) =
   )
 }
 
+// Britta's weekly form: one slider per roommate, a comment, done
+const BrindexPage = ({ today, onSubmit, go, dbError }) => {
+  const [ratings, setRatings] = useState(() => Object.fromEntries(NAMES.map((n) => [n, 5])))
+  const [comment, setComment] = useState('')
+  const [by, setBy] = useState(() => load('exchange.brindex.by', 'Britta'))
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState('')
+  const avg = brindexAverage(ratings)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      save('exchange.brindex.by', by.trim() || 'Britta')
+      await onSubmit({ day: today, ratings, comment: comment.trim(), by: by.trim() || 'Britta', at: new Date().toISOString() })
+      setDone(true)
+    } catch (err) {
+      setError(err && err.message ? err.message : 'Could not send the report.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (done)
+    return (
+      <div className="stack">
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div className="gate-title">Thank you, {by.trim() || 'Britta'}.</div>
+          <p className="gate-sub" style={{ marginTop: 8 }}>
+            The {BRINDEX_NAME} has your read for the week. Average {avg.toFixed(1)} of {BRINDEX_MAX}.
+          </p>
+          <button type="button" className="primary slim" style={{ marginTop: 14 }} onClick={() => go('')}>
+            See the market
+          </button>
+        </div>
+      </div>
+    )
+
+  return (
+    <form className="stack" onSubmit={submit}>
+      <div className="card">
+        <h3 style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3 }}>How's everyone doing this week?</h3>
+        <p className="report-lede" style={{ marginTop: 6 }}>
+          One slider per roommate, 0 to 10. Go with your gut. A comment at the end if you feel like it.
+        </p>
+      </div>
+      <DbBanner error={dbError} />
+      <div className="list">
+        {NAMES.map((n) => (
+          <div key={n} className="rate">
+            <div className="rate-head">
+              <Avatar name={n} size={36} />
+              <div className="row-main">
+                <div className="row-title">{n}</div>
+              </div>
+              <div className="rate-value num" style={{ color: `var(--c-${n})` }}>
+                {ratings[n]}
+                <small>/{BRINDEX_MAX}</small>
+              </div>
+            </div>
+            <input
+              className="slider"
+              type="range"
+              min="0"
+              max={BRINDEX_MAX}
+              step="1"
+              value={ratings[n]}
+              style={{ '--fill-color': `var(--c-${n})`, '--pct': `${(ratings[n] / BRINDEX_MAX) * 100}%` }}
+              aria-label={`${n}, 0 to ${BRINDEX_MAX}`}
+              onChange={(e) => setRatings((r) => ({ ...r, [n]: Number(e.target.value) }))}
+            />
+            <div className="slider-ends">
+              <span>Rough week</span>
+              <span>Thriving</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="field">
+        <span className="field-label">Anything to add? (optional)</span>
+        <textarea className="input" placeholder="Shout-outs, concerns, observations…" value={comment} onChange={(e) => setComment(e.target.value)} />
+      </div>
+      <div className="field">
+        <span className="field-label">Your name</span>
+        <input className="input" type="text" value={by} onChange={(e) => setBy(e.target.value)} />
+      </div>
+      {error ? <div className="banner">{error}</div> : null}
+      <button type="submit" className="primary" disabled={busy}>
+        {busy ? 'Sending…' : `Submit this week's ${BRINDEX_NAME}`}
+      </button>
+      <p className="footnote center">Your ratings and comments are only seen by the household. The index they move is public.</p>
+    </form>
+  )
+}
+
 const AboutPage = ({ theme, setTheme, onShare, account, settings }) => (
   <div className="stack">
     {account.member ? (
@@ -1085,6 +1288,7 @@ export default function Exchange() {
   const [theme, setTheme] = useState(() => load('couch.theme', 'auto'))
   const [toast, setToast] = useState('')
   const [rawSubs, setRawSubs] = useState({})
+  const [rawBrindex, setRawBrindex] = useState({})
   const [dbError, setDbError] = useState(null)
   const bodyRef = useRef(null)
   const marketView = useChartView('market')
@@ -1312,12 +1516,18 @@ export default function Exchange() {
     return () => unsubscribe()
   }, [])
 
-  // submitted events live in the shared database so everyone sees them land
+  // submitted events and Britta's reports live in the shared database
   useEffect(() => {
     if (DEMO) {
       setRawSubs(source.submissions)
+      setRawBrindex(source.brindex)
       return undefined
     }
+    const unsubscribeBrindex = onValue(
+      ref(db, 'exchange/brindex'),
+      (snap) => setRawBrindex(snap.exists() ? snap.val() : {}),
+      () => {}
+    )
     const unsubscribe = onValue(
       ref(db, 'exchange/submissions'),
       (snap) => {
@@ -1326,7 +1536,10 @@ export default function Exchange() {
       },
       (error) => setDbError({ kind: 'read', message: error && error.message })
     )
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      unsubscribeBrindex()
+    }
   }, [source])
 
   useEffect(() => {
@@ -1371,6 +1584,30 @@ export default function Exchange() {
     }
   }
 
+  const submitBrindex = async (record) => {
+    if (DEMO) {
+      setRawBrindex((prev) => ({ ...prev, [`demo-${Date.now().toString(36)}`]: record }))
+      return
+    }
+    try {
+      await push(ref(db, 'exchange/brindex'), record)
+    } catch (error) {
+      setDbError({ kind: 'write', message: error && error.message })
+      throw error
+    }
+  }
+
+  const shareBrindex = async () => {
+    const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}#/brindex`
+    try {
+      if (navigator.share) await navigator.share({ title: `The ${BRINDEX_NAME}`, text: "This week's read on the roommates, one minute.", url })
+      else {
+        await navigator.clipboard.writeText(url)
+        setToast('Brindex link copied')
+      }
+    } catch {}
+  }
+
   // only the reviewer's Google account may remove a report; the database rule
   // checks it against the Noah claim, so this is not merely hidden for others
   const removeSub = async (s) => {
@@ -1405,6 +1642,7 @@ export default function Exchange() {
   const page = route.page
   const tickerName = page === 't' && NAMES.includes(route.arg) ? route.arg : null
   const reporting = page === 'report'
+  const brindexing = page === 'brindex'
   const tab = page === 'events' || reporting ? 'events' : page === 'about' ? 'about' : page === 'calendar' ? 'calendar' : 'market'
   const settings = { photoBusy, photoError, hasPhoto: !!photos[me], choosePhoto, removePhoto, partner, setPartner }
   const requests = countRequests(reservations, me)
@@ -1432,6 +1670,13 @@ export default function Exchange() {
         Events
       </button>
       <h1 style={{ fontSize: 22 }}>Report an event</h1>
+    </div>
+  ) : brindexing ? (
+    <div className="head-row">
+      <div>
+        <div className="eyebrow">449 Boyos Exchange</div>
+        <h1>The {BRINDEX_NAME}</h1>
+      </div>
     </div>
   ) : (
     <div className="head-row">
@@ -1468,6 +1713,8 @@ export default function Exchange() {
             <CalendarGate account={account} claims={claims} pick={pick} setPick={setPick} onClaim={claim} />
           ) : tickerName ? (
             <TickerPage market={market} today={today} name={tickerName} go={go} insider={insider} view={tickerView} />
+          ) : brindexing ? (
+            <BrindexPage today={today} onSubmit={submitBrindex} go={go} dbError={dbError} />
           ) : reporting ? (
             <ReportPage market={market} today={today} account={account} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
@@ -1475,7 +1722,7 @@ export default function Exchange() {
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} account={account} settings={settings} />
           ) : (
-            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} brindex={rawBrindex} onShareBrindex={shareBrindex} />
           )}
         </main>
           </>
