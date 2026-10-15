@@ -1242,3 +1242,82 @@ details.plain summary::-webkit-details-marker {
   line-height: 1.4;
   color: var(--ink);
 }
+
+/* ---- chart views ---- */
+
+.chart-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.picks {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.picks::-webkit-scrollbar {
+  display: none;
+}
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 10px 0 5px;
+  border: 1.5px solid transparent;
+  border-radius: 18px;
+  background: var(--fill);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.pick.all {
+  padding: 0 12px;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pick.on {
+  opacity: 1;
+  color: var(--ink);
+  border-color: var(--pick, var(--accent));
+}
+.pick.all.on {
+  border-color: var(--accent);
+}
+.segmented.small {
+  margin-top: 0;
+}
+.segmented.small button {
+  min-height: 30px;
+  font-size: 13px;
+}
+details.plain-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+details.plain-group > summary::-webkit-details-marker {
+  display: none;
+}
+.avatar-stack {
+  display: flex;
+  flex-shrink: 0;
+  width: 36px;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.avatar-stack .avatar {
+  width: 17px !important;
+  height: 17px !important;
+  border-radius: 9px !important;
+  font-size: 9px !important;
+}

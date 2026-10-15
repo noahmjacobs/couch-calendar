@@ -8,7 +8,9 @@ import {
   TICKER,
   INDEX_NAME,
   IPO_PRICE,
-  EVENT_TYPES,
+  CATEGORIES,
+  CATEGORY,
+  RANGES,
   dateKey,
   addDays,
   fmtDay,
@@ -24,24 +26,18 @@ import {
   eventList,
   tickerStats,
   closedDays,
-  closingReport
+  closingReport,
+  sliceRange
 } from './market.js'
 import { Sparkline, PriceChart, MultiChart } from './charts.jsx'
 
-/* ---------- what people can report ---------- */
-
-const CATEGORIES = [
-  { id: 'date', label: 'Date', emoji: '🌹' },
-  { id: 'romance', label: 'Romance', emoji: '💘' },
-  { id: 'life', label: 'Life', emoji: '🏆' },
-  { id: 'apartment', label: 'Apartment', emoji: '🧽' },
-  { id: 'other', label: 'Other', emoji: '📝' }
-]
-const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
-
-// the household's reviewer. Recognised by Google sign-in: the account that
-// claimed this roommate in the Couch App.
+// the household's reviewer: the Google account that claimed this roommate in
+// the Couch App. The committee (Claude) rules on what the reviewer approves.
 const REVIEWER = 'Noah'
+
+// where the Couch App lives. On a shared domain it is the root; when the
+// exchange runs on its own Railway service, VITE_COUCH_URL points across.
+const COUCH_URL = import.meta.env.VITE_COUCH_URL || '/'
 
 const describeAuthError = (e) => {
   const code = (e && e.code) || ''
@@ -52,38 +48,40 @@ const describeAuthError = (e) => {
   return (e && e.message) || 'Sign-in failed.'
 }
 
-// where the Couch App lives. On a shared domain it is the root; when the
-// exchange runs on its own Railway service, VITE_COUCH_URL points across.
-const COUCH_URL = import.meta.env.VITE_COUCH_URL || '/'
+/* ---------- demo data (?demo in the URL; add &outsider for the public view) ---------- */
 
-/* ---------- demo data (?demo in the URL) ---------- */
-
-const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
-// ?demo&outsider previews what someone who is not a roommate sees
-const OUTSIDER = typeof location !== 'undefined' && new URLSearchParams(location.search).has('outsider')
+const PARAMS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams()
+const DEMO = PARAMS.has('demo')
+const OUTSIDER = PARAMS.has('outsider')
 
 const demoData = (today) => {
   const ipo = addDays(today, -40)
   const d = (n) => addDays(ipo, n)
   const ledger = [
-    { day: d(7), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Dinner downtown. Home by eleven.', verdict: 'A clean first date after a quiet week. Full credit.', by: 'Noah' },
-    { day: d(10), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Second dinner. Same restaurant, which the committee notes.', verdict: 'Momentum.', by: 'Andrew' },
-    { day: d(12), name: 'Andrew', type: 'big-w', note: 'Offer letter signed.', verdict: 'Standard impact.', by: 'Noah' },
-    { day: d(15), name: 'Jonas', type: 'date', partner: 'Maya', note: 'Hike. She brought snacks.', verdict: 'Third date inside two weeks.', by: 'Noah' },
-    { day: d(16), name: 'Bryon', type: 'date', partner: 'Sam', note: 'Coffee that turned into dinner.', verdict: 'First date on record.', by: 'James' },
-    { day: d(19), name: 'Bryon', type: 'date', partner: 'Lena', note: 'From the app. Bowling.', verdict: 'Three days after Sam. The ladder is unsentimental.', by: 'James' },
-    { day: d(20), name: 'James', type: 'hungover', note: 'Emerged at 1:40 PM asking for Gatorade.', verdict: 'Standard impact.', by: 'Bryon' },
-    { day: d(22), name: 'Jonas', type: 'girlfriend', note: 'Instagram-official as of this evening.', verdict: 'The ladder was climbed in order. Full marks.', by: 'Noah' },
-    { day: d(28), name: 'Andrew', type: 'mess', note: 'Three days of mugs on the coffee table.', verdict: 'Standard impact.', by: 'Jonas' },
-    { day: d(31), name: 'Noah', type: 'cooked', note: 'Chicken parm for five. Leftovers for none.', verdict: 'Standard impact.', by: 'Bryon' },
-    { day: d(37), name: 'James', type: 'ghosted', note: 'Last message delivered, unread, six days.', verdict: 'Standard impact.', by: 'Andrew' },
-    { day: d(39), name: 'Noah', type: 'date', partner: 'Priya', note: 'Museum, then tacos.', verdict: 'First date after a long quiet spell.', by: 'Jonas', ref: 'demo-s4' }
+    { day: d(7), name: 'Jonas', type: 'date', partner: 'Maya', pct: 9, note: 'Dinner downtown. Home by eleven.', verdict: 'First date on record after a quiet month. The market likes a fresh start.', by: 'Noah' },
+    { day: d(10), name: 'Jonas', type: 'date', partner: 'Maya', pct: 12, note: 'Second dinner. Same restaurant, which the committee notes.', verdict: 'A second date inside a week is momentum, and the market pays for momentum.', by: 'Andrew' },
+    { day: d(12), name: 'Andrew', type: 'life', pct: 10, title: 'Offer letter signed', note: 'Full-time, starts in January.', verdict: 'Material and unexpected. Full credit.', by: 'Noah' },
+    { day: d(15), name: 'Jonas', type: 'date', partner: 'Maya', pct: 8, note: 'Hike. She brought snacks.', verdict: 'Third date in two weeks. Priced in by now, but still a step up.', by: 'Noah' },
+    { day: d(16), name: 'Bryon', type: 'date', partner: 'Sam', pct: 9, note: 'Coffee that turned into dinner.', verdict: 'First date in the record. Strong open.', by: 'James' },
+    { day: d(19), name: 'Bryon', type: 'date', partner: 'Lena', pct: 3, note: 'From the app. Bowling.', verdict: 'Three days after Sam. The market is unsure what it is looking at.', by: 'James' },
+    { day: d(20), name: 'James', type: 'life', pct: -3, title: 'Hungover past noon', note: 'Emerged at 1:40 PM asking for Gatorade.', verdict: 'A Tuesday, which is the part the committee minds.', by: 'Bryon' },
+    { day: d(22), name: 'Jonas', type: 'romance', pct: 14, title: 'Made it official', note: 'Instagram-official as of this evening.', verdict: 'Expected after three dates, so not the full jump a surprise would earn. Still the biggest print of the quarter.', by: 'Noah' },
+    { day: d(24), name: 'Noah', type: 'social', pct: 2, title: 'Game night', note: 'Everyone. Catan. Noah hosted.', verdict: 'A little for everyone; a little more for the host.', by: 'Jonas' },
+    { day: d(24), name: 'Bryon', type: 'social', pct: 1, title: 'Game night', note: 'Everyone. Catan.', verdict: 'A little for everyone.', by: 'Jonas' },
+    { day: d(24), name: 'Jonas', type: 'social', pct: 1, title: 'Game night', note: 'Everyone. Catan.', verdict: 'A little for everyone.', by: 'Jonas' },
+    { day: d(24), name: 'Andrew', type: 'social', pct: 1, title: 'Game night', note: 'Everyone. Catan.', verdict: 'A little for everyone.', by: 'Jonas' },
+    { day: d(24), name: 'James', type: 'social', pct: 1, title: 'Game night', note: 'Everyone. Catan. James won.', verdict: 'A little for everyone; the win is noted.', by: 'Jonas' },
+    { day: d(28), name: 'Andrew', type: 'apartment', pct: -3, title: 'Left a mess for days', note: 'Three days of mugs on the coffee table.', verdict: 'Repeat behaviour. The market has seen this before.', by: 'Jonas' },
+    { day: d(31), name: 'Noah', type: 'apartment', pct: 3, title: 'Cooked for the house', note: 'Chicken parm for five. Leftovers for none.', verdict: 'Rare enough to count.', by: 'Bryon' },
+    { day: d(37), name: 'James', type: 'romance', pct: -5, title: 'Got ghosted', note: 'Last message delivered, unread, six days.', verdict: 'Not his first. The market had partly priced it in.', by: 'Andrew' },
+    { day: d(39), name: 'Noah', type: 'date', partner: 'Priya', pct: 10, note: 'Museum, then tacos.', verdict: 'First date after a long quiet spell. Full credit.', by: 'Jonas', ref: 'demo-s4' }
   ]
   const submissions = {
-    'demo-s1': { name: 'James', category: 'apartment', text: 'Did every dish in the sink without being asked.', day: today, by: 'Bryon', at: `${today}T18:20:00.000Z`, status: 'pending' },
-    'demo-s2': { name: 'Andrew', category: 'romance', text: 'Got a number at the farmers market. Unprompted.', day: addDays(today, -1), by: 'Noah', at: `${addDays(today, -1)}T21:02:00.000Z`, status: 'approved' },
-    'demo-s3': { name: 'Noah', category: 'other', text: 'Noah is simply the best roommate and deserves +40%.', day: addDays(today, -3), by: 'Anonymous', at: `${addDays(today, -3)}T23:40:00.000Z`, status: 'rejected' },
-    'demo-s4': { name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z`, status: 'approved' }
+    'demo-s1': { names: ['James'], name: 'James', category: 'apartment', text: 'Did every dish in the sink without being asked.', day: today, by: 'Bryon', at: `${today}T18:20:00.000Z`, status: 'pending' },
+    'demo-s2': { names: ['Andrew'], name: 'Andrew', category: 'romance', text: 'Got a number at the farmers market. Unprompted.', day: addDays(today, -1), by: 'Noah', at: `${addDays(today, -1)}T21:02:00.000Z`, status: 'approved' },
+    'demo-s3': { names: ['Noah'], name: 'Noah', category: 'other', text: 'Noah is simply the best roommate and deserves +40%.', day: addDays(today, -3), by: 'Anonymous', at: `${addDays(today, -3)}T23:40:00.000Z`, status: 'rejected' },
+    'demo-s4': { names: ['Noah'], name: 'Noah', category: 'date', partner: 'Priya', text: 'Museum, then tacos.', day: d(39), by: 'Jonas', at: `${d(39)}T22:10:00.000Z`, status: 'approved' },
+    'demo-s5': { names: NAMES, name: 'Noah', category: 'social', text: 'All five went to trivia at the bar. Came third.', day: addDays(today, -1), by: 'Couch App', at: `${addDays(today, -1)}T23:00:00.000Z`, status: 'approved', source: 'couch' }
   }
   return { ipo, ledger, submissions }
 }
@@ -152,6 +150,28 @@ const minutesToClose = () => {
   const end = new Date(now)
   end.setHours(24, 0, 0, 0)
   return Math.max(0, Math.round((end - now) / 60000))
+}
+
+// which listings and which range a chart shows, remembered on this phone
+const useChartView = (key) => {
+  const [picked, setPicked] = useState(() => {
+    try {
+      const v = JSON.parse(load(`exchange.view.${key}.picked`, 'null'))
+      return Array.isArray(v) && v.every((n) => NAMES.includes(n)) && v.length ? v : NAMES
+    } catch {
+      return NAMES
+    }
+  })
+  const [range, setRange] = useState(() => (RANGES.some((r) => r.id === load(`exchange.view.${key}.range`, '')) ? load(`exchange.view.${key}.range`, 'all') : 'all'))
+  useEffect(() => save(`exchange.view.${key}.picked`, JSON.stringify(picked)), [key, picked])
+  useEffect(() => save(`exchange.view.${key}.range`, range), [key, range])
+  const toggle = (name) =>
+    setPicked((p) => {
+      if (p.length === NAMES.length) return [name] // from "all", tapping one isolates it
+      if (p.includes(name)) return p.length === 1 ? NAMES : p.filter((n) => n !== name)
+      return NAMES.filter((n) => p.includes(n) || n === name)
+    })
+  return { picked, toggle, all: () => setPicked(NAMES), range, setRange }
 }
 
 /* ---------- pieces ---------- */
@@ -229,6 +249,45 @@ const TabIcon = ({ kind, active }) => {
   )
 }
 
+// listing toggles and a range picker, shared by the market chart and a ticker
+const ChartControls = ({ view, listings = true }) => (
+  <div className="chart-controls">
+    {listings ? (
+      <div className="picks">
+        <button type="button" className={`pick all${view.picked.length === NAMES.length ? ' on' : ''}`} onClick={view.all}>
+          All
+        </button>
+        {NAMES.map((n) => {
+          const on = view.picked.includes(n)
+          return (
+            <button key={n} type="button" className={`pick${on ? ' on' : ''}`} style={{ '--pick': `var(--c-${n})` }} onClick={() => view.toggle(n)} aria-pressed={on} title={n}>
+              <Avatar name={n} size={26} />
+              <span>{TICKER[n]}</span>
+            </button>
+          )
+        })}
+      </div>
+    ) : null}
+    <div className="segmented small">
+      {RANGES.map((r) => (
+        <button key={r.id} type="button" className={view.range === r.id ? 'on' : ''} onClick={() => view.setRange(r.id)}>
+          {r.label}
+        </button>
+      ))}
+    </div>
+  </div>
+)
+
+const rangeDays = (id) => (RANGES.find((r) => r.id === id) || RANGES[RANGES.length - 1]).days
+
+const namesOf = (s) => (Array.isArray(s.names) && s.names.length ? s.names.filter((n) => NAMES.includes(n)) : NAMES.includes(s.name) ? [s.name] : [])
+
+const listNames = (names) => {
+  if (names.length === NAMES.length) return 'Everyone'
+  if (names.length <= 1) return names[0] || ''
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`
+}
+
 const Filing = ({ e, showName = true, onName }) => (
   <div className="filing">
     <div className="filing-emoji" aria-hidden="true">
@@ -260,52 +319,53 @@ const Filing = ({ e, showName = true, onName }) => (
 
 const STATUS_LABEL = { pending: 'Pending review', approved: 'Approved', filed: 'Filed', rejected: 'Rejected' }
 
-// events are for the household. Anyone else sees the shape of them and no more.
-const Blurred = ({ account, children }) => (
-  <div className="blur-wrap">
-    <div className="blurred" aria-hidden="true">
-      {children}
-    </div>
-    <div className="blur-overlay">
-      <p>{account.user ? 'Roommates only. This Google account is not a roommate.' : 'Roommates only. Sign in with Google to see the events.'}</p>
-      {account.user ? (
-        <button type="button" className="chip small" onClick={account.signOut}>
-          Sign out
-        </button>
-      ) : (
-        <button type="button" className="chip small" onClick={account.signIn} disabled={account.busy}>
-          Sign in with Google
-        </button>
-      )}
-    </div>
-  </div>
-)
-
-const Submission = ({ s, reviewer, onReview, filedEvent, onName }) => {
+const Submission = ({ s, reviewer, onReview, filed, onName }) => {
   const cat = CATEGORY[s.category] || CATEGORY.other
+  const names = namesOf(s)
   return (
     <div className="sub">
-      <Avatar name={s.name} size={36} />
+      {names.length === 1 ? (
+        <Avatar name={names[0]} size={36} />
+      ) : (
+        <div className="avatar-stack">
+          {names.slice(0, 3).map((n) => (
+            <Avatar key={n} name={n} size={26} />
+          ))}
+        </div>
+      )}
       <div className="sub-main">
         <div className="sub-title">
-          <button type="button" className="link" style={{ font: 'inherit', fontWeight: 600 }} onClick={() => onName && onName(s.name)}>
-            {s.name}
-          </button>
+          {names.length === 1 ? (
+            <button type="button" className="link" style={{ font: 'inherit', fontWeight: 600 }} onClick={() => onName && onName(names[0])}>
+              {names[0]}
+            </button>
+          ) : (
+            <span>{listNames(names)}</span>
+          )}
           <span style={{ color: 'var(--ink-2)', fontWeight: 500 }}>
             {cat.emoji} {cat.label}
             {s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}
           </span>
           <span className={`badge ${s.status}`}>{STATUS_LABEL[s.status] || s.status}</span>
           {s.source === 'couch' ? <span className="badge">Couch App</span> : null}
-          {filedEvent ? <Delta pct={filedEvent.pct} /> : null}
+          {filed && filed.length === 1 ? <Delta pct={filed[0].pct} /> : null}
         </div>
         <div className="sub-text">{s.text}</div>
+        {filed && filed.length > 1 ? (
+          <div className="sub-meta">
+            {filed.map((e) => (
+              <span key={e.key} style={{ marginRight: 8 }}>
+                {TICKER[e.name]} <Delta pct={e.pct} />
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div className="sub-meta">
           {fmtDay(s.day, { weekday: 'short', month: 'short', day: 'numeric' })} · reported by {s.by || 'Anonymous'}
           {s.status === 'approved' && s.reviewedBy ? ` · approved by ${s.reviewedBy}` : ''}
           {s.status === 'rejected' && s.reviewedBy ? ` · rejected by ${s.reviewedBy}` : ''}
         </div>
-        {reviewer && (s.status === 'pending' || s.status === 'approved' || s.status === 'rejected') ? (
+        {reviewer && s.status !== 'filed' ? (
           <div className="sub-actions">
             {s.status !== 'approved' ? (
               <button type="button" className="chip small" onClick={() => onReview(s.id, 'approved')}>
@@ -354,14 +414,48 @@ const DbBanner = ({ error }) =>
   error ? (
     <div className="banner">
       The database is not letting the exchange {error.kind === 'write' ? 'post' : 'read'} events yet
-      {error.message ? ` (${error.message})` : ''}. The Firebase rules need an <code>exchange</code> entry alongside{' '}
-      <code>reservations</code>, with read and write allowed.
+      {error.message ? ` (${error.message})` : ''}. The Firebase rules need an <code>exchange</code> entry with read and
+      write allowed.
     </div>
   ) : null
 
+const AccountRow = ({ account }) =>
+  account.user && account.member ? (
+    <div className="row">
+      <Avatar name={account.member.name} size={32} />
+      <div className="row-main">
+        <div className="row-title">Signed in as {account.member.name}</div>
+        <div className="row-sub">{account.user.email}</div>
+      </div>
+      <button type="button" className="chip small" onClick={account.signOut}>
+        Sign out
+      </button>
+    </div>
+  ) : account.user ? (
+    <div className="row">
+      <div className="row-main">
+        <div className="row-title">Signed in, not a roommate</div>
+        <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+          Only the five roommates see the events. You can still report one.
+        </div>
+      </div>
+      <button type="button" className="chip small" onClick={account.signOut}>
+        Sign out
+      </button>
+    </div>
+  ) : (
+    <button type="button" className="row" onClick={account.signIn} disabled={account.busy}>
+      <div className="row-main">
+        <div className="row-title">Roommate? Sign in with Google</div>
+        <div className="row-sub">Roommates see the events behind the numbers</div>
+      </div>
+      <Chevron />
+    </button>
+  )
+
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go, waiting, insider, account }) => {
+const MarketPage = ({ market, today, go, waiting, insider, view }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
@@ -369,7 +463,13 @@ const MarketPage = ({ market, today, go, waiting, insider, account }) => {
   const days = closedDays(market)
   const lastClose = days.length ? days[days.length - 1] : null
   const report = lastClose ? closingReport(market, lastClose) : null
-  const multi = NAMES.map((n) => ({ key: n, label: TICKER[n], color: `var(--c-${n})`, points: priceSeries(market, n, today) }))
+  const windowDays = rangeDays(view.range)
+  const series = view.picked.map((n) => ({
+    key: n,
+    label: TICKER[n],
+    color: `var(--c-${n})`,
+    points: sliceRange(priceSeries(market, n, today), today, windowDays)
+  }))
   const tapeItems = ranked.map((n) => {
     const ch = dayChange(market, n, today)
     return (
@@ -382,6 +482,7 @@ const MarketPage = ({ market, today, go, waiting, insider, account }) => {
       </span>
     )
   })
+  const rangeLabel = (RANGES.find((r) => r.id === view.range) || RANGES[3]).label
 
   return (
     <div className="stack">
@@ -456,63 +557,63 @@ const MarketPage = ({ market, today, go, waiting, insider, account }) => {
 
       <div className="group">
         <div className="group-head">
-          <span className="group-label">All listings</span>
+          <span className="group-label">{view.picked.length === NAMES.length ? 'All listings' : listNames(view.picked)}</span>
           <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-            Since IPO
+            {view.range === 'all' ? 'Since IPO' : `Past ${rangeLabel.toLowerCase() === '1w' ? 'week' : rangeLabel === '1M' ? 'month' : 'year'}`}
           </span>
         </div>
         <div className="card tight">
-          <MultiChart series={multi} />
-          <div className="legend">
-            {NAMES.map((n) => (
-              <span key={n} className="legend-item">
-                <i style={{ background: `var(--c-${n})` }} />
-                <Avatar name={n} size={18} />
-                {n}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="group">
-        <div className="group-head">
-          <span className="group-label">Latest filings</span>
-          {events.length > 3 ? (
-            <button type="button" className="link" onClick={() => go('events')}>
-              See all
-            </button>
+          <ChartControls view={view} />
+          {series.length === 1 ? (
+            <PriceChart series={series[0].points} color={series[0].color} title={`${series[0].label} price`} />
+          ) : (
+            <MultiChart series={series} />
+          )}
+          {series.length > 1 ? (
+            <div className="legend">
+              {view.picked.map((n) => (
+                <span key={n} className="legend-item">
+                  <i style={{ background: `var(--c-${n})` }} />
+                  <Avatar name={n} size={18} />
+                  {n}
+                </span>
+              ))}
+            </div>
           ) : null}
         </div>
-        {insider ? (
-          <div className="list">
-            {events.length ? (
-              events.slice(0, 3).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
-            ) : (
-              <div className="empty">
-                No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
-                {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
-                <br />
-                Something happen? Report it on the Events tab.
-              </div>
-            )}
-          </div>
-        ) : (
-          <Blurred account={account}>
-            <div className="stack">
-              <div className="list">
-                {(events.length ? events.slice(0, 3) : []).map((e) => (
-                  <Filing key={e.key} e={e} />
-                ))}
-                {!events.length ? <div className="empty">No filings yet.</div> : null}
-              </div>
-              <Report report={report} />
-            </div>
-          </Blurred>
-        )}
       </div>
 
-      {insider ? <Report report={report} /> : null}
+      {insider ? (
+        <>
+          <details className="group plain-group" open={events.length <= 3}>
+            <summary className="group-head">
+              <span className="group-label">Filings</span>
+              <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+                {events.length} on record · tap to {events.length <= 3 ? 'hide' : 'show'}
+              </span>
+            </summary>
+            <div className="list">
+              {events.length ? (
+                events.slice(0, 8).map((e) => <Filing key={e.key} e={e} onName={(n) => go(`t/${n}`)} />)
+              ) : (
+                <div className="empty">
+                  No filings yet. The board opened at {fmtMoney(IPO_PRICE)} across the board on{' '}
+                  {fmtDay(market.ipo, { weekday: 'long', month: 'long', day: 'numeric' })}.
+                </div>
+              )}
+              {events.length > 8 ? (
+                <button type="button" className="row" onClick={() => go('events')}>
+                  <div className="row-main">
+                    <div className="row-title">All {events.length} filings</div>
+                  </div>
+                  <Chevron />
+                </button>
+              ) : null}
+            </div>
+          </details>
+          <Report report={report} />
+        </>
+      ) : null}
 
       <p className="footnote center">
         Prices are set by the Exchange's pricing committee from events the household reports. Rulings are final.
@@ -521,10 +622,10 @@ const MarketPage = ({ market, today, go, waiting, insider, account }) => {
   )
 }
 
-const TickerPage = ({ market, today, name, go, insider, account }) => {
+const TickerPage = ({ market, today, name, go, insider, view }) => {
   const ch = dayChange(market, name, today)
   const st = tickerStats(market, name, today)
-  const series = priceSeries(market, name, today)
+  const series = sliceRange(priceSeries(market, name, today), today, rangeDays(view.range))
   const rank = rankings(market).indexOf(name) + 1
   const own = eventList(market).filter((e) => e.name === name)
   const firstDay = closedDays(market).filter((d) => d < today).length === 0
@@ -540,6 +641,7 @@ const TickerPage = ({ market, today, name, go, insider, account }) => {
           <Delta pct={ch.pct} abs={ch.abs} big />
         </div>
         <p className="hero-sub">{firstDay ? 'Today, since the IPO' : "Today, vs yesterday's close"}</p>
+        <ChartControls view={view} listings={false} />
         <PriceChart series={series} color={`var(--c-${name})`} title={`${TICKER[name]} price`} />
       </div>
 
@@ -578,29 +680,23 @@ const TickerPage = ({ market, today, name, go, insider, account }) => {
         Report something about {name}
       </button>
 
-      <div className="group">
-        <div className="group-head">
-          <span className="group-label">Filings</span>
-        </div>
-        {insider ? (
+      {insider ? (
+        <div className="group">
+          <div className="group-head">
+            <span className="group-label">Filings</span>
+          </div>
           <div className="list">
             {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record. A clean sheet, so far.</div>}
           </div>
-        ) : (
-          <Blurred account={account}>
-            <div className="list">
-              {own.length ? own.map((e) => <Filing key={e.key} e={e} showName={false} />) : <div className="empty">No filings on record.</div>}
-            </div>
-          </Blurred>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       <p className="footnote center">Report something about {name} and the committee rules on it at the close.</p>
     </div>
   )
 }
 
-const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onToast, account, insider }) => {
+const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, account, insider }) => {
   const events = eventList(market)
   const pending = subs.filter((s) => s.status === 'pending')
   const approved = subs.filter((s) => s.status === 'approved')
@@ -611,50 +707,46 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
     if (last && last.day === e.day) last.items.push(e)
     else byDay.push({ day: e.day, items: [e] })
   })
-  const filedBy = Object.fromEntries(events.filter((e) => e.ref).map((e) => [e.ref, e]))
+  const filedBy = {}
+  events.forEach((e) => {
+    if (e.ref) (filedBy[e.ref] = filedBy[e.ref] || []).push(e)
+  })
 
-  const exportText = () => {
-    const lines = [`449 Exchange · events for the committee · as of ${fmtDay(today, { weekday: 'short', month: 'short', day: 'numeric' })}`, '']
-    if (!approved.length) lines.push('No approved events waiting.')
-    approved.forEach((s, i) => {
-      const cat = CATEGORY[s.category] || CATEGORY.other
-      lines.push(
-        `${i + 1}. [${s.id}] ${s.day} · ${s.name} · ${cat.label}${s.category === 'date' && s.partner ? ` with ${s.partner}` : ''}`,
-        `   "${s.text}" — reported by ${s.by || 'Anonymous'}`
-      )
-    })
-    if (pending.length) lines.push('', `${pending.length} still pending review.`)
-    return lines.join('\n')
-  }
+  if (!insider)
+    return (
+      <div className="stack">
+        <button type="button" className="primary" onClick={() => go('report')}>
+          Report an event
+        </button>
+        <DbBanner error={dbError} />
+        <div className="card">
+          <h3 style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3 }}>How it works</h3>
+          <p className="report-lede" style={{ marginTop: 6 }}>
+            Something happens to a roommate. Someone reports it here. The household confirms it, the committee weighs
+            it, and the price moves at the close. The events themselves are the household's business; the prices are
+            everyone's.
+          </p>
+        </div>
+        <div className="list">
+          <AccountRow account={account} />
+        </div>
+        {account.error ? <div className="banner">{account.error}</div> : null}
+      </div>
+    )
 
-  const copyExport = async () => {
-    try {
-      await navigator.clipboard.writeText(exportText())
-      onToast('Copied for the committee')
-    } catch {
-      onToast('Could not copy')
-    }
-  }
+  return (
+    <div className="stack">
+      <button type="button" className="primary" onClick={() => go('report')}>
+        Report an event
+      </button>
+      <DbBanner error={dbError} />
 
-  const feed = (
-    <>
       {reviewer ? (
         <div className="card tight">
           <div className="row-title">Committee desk</div>
           <div className="row-sub" style={{ whiteSpace: 'normal' }}>
-            {pending.length} pending · {approved.length} approved and waiting for a ruling
+            {pending.length} pending your review · {approved.length} approved and waiting for the committee's ruling
           </div>
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button type="button" className="chip" onClick={copyExport} disabled={!approved.length && !pending.length}>
-              Copy approved events
-            </button>
-          </div>
-          {approved.length ? (
-            <details className="plain" style={{ marginTop: 8 }}>
-              <summary>Preview the export</summary>
-              <div className="export">{exportText()}</div>
-            </details>
-          ) : null}
         </div>
       ) : null}
 
@@ -732,56 +824,14 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
           </summary>
           <div className="list" style={{ marginTop: 8 }}>
             {resolved.map((s) => (
-              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} filedEvent={filedBy[s.id]} onName={(n) => go(`t/${n}`)} />
+              <Submission key={s.id} s={s} reviewer={reviewer} onReview={onReview} filed={filedBy[s.id]} onName={(n) => go(`t/${n}`)} />
             ))}
           </div>
         </details>
       ) : null}
-    </>
-  )
-
-  return (
-    <div className="stack">
-      <button type="button" className="primary" onClick={() => go('report')}>
-        Report an event
-      </button>
-      <DbBanner error={dbError} />
-
-      {insider ? feed : <Blurred account={account}>{feed}</Blurred>}
 
       <div className="list">
-        {account.user && account.member ? (
-          <div className="row">
-            <Avatar name={account.member.name} size={32} />
-            <div className="row-main">
-              <div className="row-title">Signed in as {account.member.name}</div>
-              <div className="row-sub">{account.user.email}</div>
-            </div>
-            <button type="button" className="chip small" onClick={account.signOut}>
-              Sign out
-            </button>
-          </div>
-        ) : account.user ? (
-          <div className="row">
-            <div className="row-main">
-              <div className="row-title">Signed in, not a roommate yet</div>
-              <div className="row-sub" style={{ whiteSpace: 'normal' }}>
-                Open the Couch App with this Google account to pick who you are.
-              </div>
-            </div>
-            <button type="button" className="chip small" onClick={account.signOut}>
-              Sign out
-            </button>
-          </div>
-        ) : (
-          <button type="button" className="row" onClick={account.signIn} disabled={account.busy}>
-            <div className="row-main">
-              <div className="row-title">Roommate? Sign in with Google</div>
-              <div className="row-sub">{REVIEWER} reviews the day's reports from here</div>
-            </div>
-            <Chevron />
-          </button>
-        )}
+        <AccountRow account={account} />
       </div>
       {account.error ? <div className="banner">{account.error}</div> : null}
       <p className="footnote center">
@@ -792,16 +842,18 @@ const EventsPage = ({ market, subs, reviewer, onReview, dbError, go, today, onTo
   )
 }
 
-const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
-  const [name, setName] = useState(NAMES.includes(preset) ? preset : '')
+const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) => {
+  const [names, setNames] = useState(NAMES.includes(preset) ? [preset] : [])
   const [category, setCategory] = useState('')
   const [partner, setPartner] = useState('')
   const [text, setText] = useState('')
   const [day, setDay] = useState(today)
-  const [by, setBy] = useState(() => me || load('exchange.reporter', ''))
+  const [by, setBy] = useState(() => load('exchange.reporter', ''))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const ready = name && category && text.trim().length >= 3 && day >= market.ipo && day <= today
+  const member = account.member
+  const ready = names.length && category && text.trim().length >= 3 && day >= market.ipo && day <= today
+  const toggleName = (n) => setNames((p) => (p.includes(n) ? p.filter((x) => x !== n) : NAMES.filter((x) => p.includes(x) || x === n)))
 
   const submit = async (e) => {
     e.preventDefault()
@@ -809,15 +861,18 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
     setBusy(true)
     setError('')
     try {
-      const who = by.trim() || 'Anonymous'
-      save('exchange.reporter', by.trim())
+      // a signed-in roommate reports as themselves, always
+      const who = member ? member.name : by.trim() || 'Anonymous'
+      if (!member) save('exchange.reporter', by.trim())
       await onSubmit({
-        name,
+        names,
+        name: names[0],
         category,
         partner: category === 'date' ? partner.trim() : '',
         text: text.trim(),
         day,
         by: who,
+        uid: account.user ? account.user.uid : '',
         at: new Date().toISOString(),
         status: 'pending'
       })
@@ -833,15 +888,21 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
     <form className="stack" onSubmit={submit}>
       <DbBanner error={dbError} />
       <div className="field">
-        <span className="field-label">Listing</span>
+        <div className="group-head" style={{ padding: 0 }}>
+          <span className="field-label">Who it happened to</span>
+          <button type="button" className="link" onClick={() => setNames(names.length === NAMES.length ? [] : NAMES)}>
+            {names.length === NAMES.length ? 'Clear' : 'Everyone'}
+          </button>
+        </div>
         <div className="chips">
           {NAMES.map((n) => (
             <button
               key={n}
               type="button"
-              className={`chip who-chip${name === n ? ' on' : ''}`}
+              className={`chip who-chip${names.includes(n) ? ' on' : ''}`}
               style={{ '--chip-bg': COLOR[n], '--chip-ink': INK[n] }}
-              onClick={() => setName(n)}
+              aria-pressed={names.includes(n)}
+              onClick={() => toggleName(n)}
             >
               <Avatar name={n} size={26} />
               {n}
@@ -860,13 +921,7 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
           ))}
         </div>
         {category === 'date' ? (
-          <input
-            className="input"
-            type="text"
-            placeholder="With whom? A name or initials (the ladder tracks repeat dates)"
-            value={partner}
-            onChange={(e) => setPartner(e.target.value)}
-          />
+          <input className="input" type="text" placeholder="With whom? A name or initials" value={partner} onChange={(e) => setPartner(e.target.value)} />
         ) : null}
       </div>
 
@@ -874,7 +929,7 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
         <span className="field-label">What happened</span>
         <textarea
           className="input"
-          placeholder={name ? `What did ${name} do?` : 'What happened, in a sentence or two'}
+          placeholder={names.length === 1 ? `What did ${names[0]} do?` : names.length > 1 ? 'What did they do?' : 'What happened, in a sentence or two'}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -887,7 +942,17 @@ const ReportPage = ({ market, today, me, preset, onSubmit, go, dbError }) => {
 
       <div className="field">
         <span className="field-label">Reported by</span>
-        <input className="input" type="text" placeholder="Your name (or stay anonymous)" value={by} onChange={(e) => setBy(e.target.value)} />
+        {member ? (
+          <div className="row card tight" style={{ minHeight: 0 }}>
+            <Avatar name={member.name} size={30} />
+            <div className="row-main">
+              <div className="row-title">{member.name}</div>
+              <div className="row-sub">Roommates report as themselves</div>
+            </div>
+          </div>
+        ) : (
+          <input className="input" type="text" placeholder="Your name (or stay anonymous)" value={by} onChange={(e) => setBy(e.target.value)} />
+        )}
       </div>
 
       {error ? <div className="banner">{error}</div> : null}
@@ -918,8 +983,8 @@ const AboutPage = ({ theme, setTheme, onShare, insider }) => (
         the board moves at the close.
       </p>
       <p className="muted">
-        How much any event is worth is for the committee to decide. Rulings are published with their reasoning and
-        are final.
+        How much any event is worth is for the committee to decide. Rulings are published to the household with their
+        reasoning and are final.
       </p>
     </div>
 
@@ -976,15 +1041,16 @@ export default function Exchange() {
   const [rawSubs, setRawSubs] = useState({})
   const [dbError, setDbError] = useState(null)
   const bodyRef = useRef(null)
+  const marketView = useChartView('market')
+  const tickerView = useChartView('ticker')
 
   // Google sign-in. A signed-in account that claimed a roommate in the Couch
-  // App is that roommate here too; the reviewer's controls follow from that.
+  // App is that roommate here too: roommates see the events, the reviewer acts.
   const [user, setUser] = useState(null)
   const [member, setMember] = useState(null)
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const me = member ? member.name : ''
-  // a roommate sees the events; the reviewer can act on them
   const insider = (DEMO && !OUTSIDER) || !!member
   const reviewer = (DEMO && !OUTSIDER) || (!!member && member.name === REVIEWER)
 
@@ -1060,7 +1126,7 @@ export default function Exchange() {
   useEffect(() => {
     if (DEMO) {
       setRawSubs(source.submissions)
-      return
+      return undefined
     }
     const unsubscribe = onValue(
       ref(db, 'exchange/submissions'),
@@ -1080,7 +1146,7 @@ export default function Exchange() {
   }, [route.page, route.arg])
 
   useEffect(() => {
-    if (!toast) return
+    if (!toast) return undefined
     const id = setTimeout(() => setToast(''), 2200)
     return () => clearTimeout(id)
   }, [toast])
@@ -1091,7 +1157,7 @@ export default function Exchange() {
     () =>
       Object.entries(rawSubs || {})
         .map(([id, s]) => ({ ...s, id, status: filedRefs.has(id) ? 'filed' : s.status || 'pending' }))
-        .filter((s) => NAMES.includes(s.name))
+        .filter((s) => namesOf(s).length)
         .sort((a, b) => (b.at || '').localeCompare(a.at || '')),
     [rawSubs, filedRefs]
   )
@@ -1127,7 +1193,6 @@ export default function Exchange() {
   }
 
   const share = async () => {
-    // the page's own address, whether it is served at /exchange/ or at the root
     const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}`
     try {
       if (navigator.share) await navigator.share({ title: '449 Exchange', text: 'The roommate stock market.', url })
@@ -1195,15 +1260,15 @@ export default function Exchange() {
         <header className="x-head">{header}</header>
         <main className="x-body" ref={bodyRef}>
           {tickerName ? (
-            <TickerPage market={market} today={today} name={tickerName} go={go} insider={insider} account={account} />
+            <TickerPage market={market} today={today} name={tickerName} go={go} insider={insider} view={tickerView} />
           ) : reporting ? (
-            <ReportPage market={market} today={today} me={me} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
+            <ReportPage market={market} today={today} account={account} preset={route.arg} onSubmit={submitEvent} go={go} dbError={dbError} />
           ) : tab === 'events' ? (
-            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} today={today} onToast={setToast} account={account} insider={insider} />
+            <EventsPage market={market} subs={subs} reviewer={reviewer} onReview={review} dbError={dbError} go={go} account={account} insider={insider} />
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} insider={insider} />
           ) : (
-            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} account={account} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} />
           )}
         </main>
         <nav className="x-tabbar">

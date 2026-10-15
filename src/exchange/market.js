@@ -2,16 +2,20 @@
 //
 // Everything in here is pure. The board is rebuilt from the ledger on every
 // load: open everyone at the IPO price, then walk the calendar from the IPO to
-// today, applying that day's filings and, at each close, the depreciation a
-// listing earns by going quiet. The same ledger therefore produces the same
-// prices on every phone.
+// today, applying that day's filings and, at each close, the small step down a
+// listing earns by going quiet for a full week. The same ledger therefore
+// produces the same prices on every phone.
+//
+// The engine decides nothing about what an event is worth. Every filing in the
+// ledger carries the percentage the pricing committee ruled, after weighing the
+// roommate's history and how expected the event was.
 
 import { NAMES } from '../roommates.js'
 
 /* ---------- listing ---------- */
 
 export const IPO_PRICE = 100
-export const FLOOR_PRICE = 1 // nobody goes to zero, however bad the week
+export const FLOOR_PRICE = 1 // nobody goes to zero, however bad the month
 
 export const TICKER = {
   Noah: 'NOAH',
@@ -22,49 +26,26 @@ export const TICKER = {
 }
 export const INDEX_NAME = 'BOYO 5'
 
-// nothing happens, nothing moves. But a listing that goes a week without a
-// filing starts to depreciate, a little each day, for a while, then levels off
-export const IDLE_GRACE_DAYS = 7
-export const IDLE_DECAY = 0.004 // −0.4% a day
-export const IDLE_SPAN_DAYS = 25 // about −10% in all, then flat until something happens
+// nothing happens, nothing moves. A listing that goes a full week without a
+// filing steps down a little at the close of that seventh day, again a week
+// later, and so on, up to a cap; then it holds until something happens.
+export const IDLE_WEEK_DAYS = 7
+export const IDLE_WEEKLY_DECAY = 0.02 // −2% per full quiet week
+export const IDLE_MAX_WEEKS = 4
 
-// the dating ladder. A date's impact is worked out from the record: who it was
-// with, how long since the last one, and whether anyone else was in the picture
-export const DATING = {
-  first: 10, // a first date, nobody else in the last week
-  juggling: 5, // a first date with someone new within a week of a date with someone else
-  second: 15, // second date with the same person inside the momentum window
-  third: 18,
-  steady: 20, // fourth date and beyond
-  rekindled: 10, // a repeat date after the momentum window has lapsed
-  jugglingWindow: 7, // days
-  momentumWindow: 14 // days
-}
+export const PCT_LIMIT = 40 // no single filing moves a listing more than this
 
-/* ---------- material events: the standard impacts ---------- */
+/* ---------- categories: flavour only ---------- */
 
-// the committee's private baseline. Nothing here is shown in the app; every
-// filing carries the committee's own `pct`, and these are the defaults it
-// starts from when it has no reason to depart.
-export const EVENT_TYPES = [
-  { id: 'date', group: 'Romance', emoji: '🌹', label: 'Went on a date', pct: null, auto: true, range: '+5 to +20' },
-  { id: 'girlfriend', group: 'Romance', emoji: '💘', label: 'Made it official', pct: 25 },
-  { id: 'first-kiss', group: 'Romance', emoji: '💋', label: 'First kiss', pct: 8 },
-  { id: 'number', group: 'Romance', emoji: '📱', label: 'Got a number', pct: 2 },
-  { id: 'ghosted', group: 'Romance', emoji: '👻', label: 'Got ghosted', pct: -6 },
-  { id: 'dumped', group: 'Romance', emoji: '💔', label: 'Got dumped', pct: -20 },
-  { id: 'big-w', group: 'Life', emoji: '🏆', label: 'Big W (job, grade, promotion)', pct: 10 },
-  { id: 'gym', group: 'Life', emoji: '💪', label: 'Gym PR or streak', pct: 2 },
-  { id: 'hungover', group: 'Life', emoji: '🤢', label: 'Hungover past noon', pct: -3 },
-  { id: 'big-l', group: 'Life', emoji: '🪦', label: 'Big L (fired, failed, totaled)', pct: -10 },
-  { id: 'cooked', group: 'Apartment', emoji: '🍝', label: 'Cooked for the house', pct: 3 },
-  { id: 'dishes', group: 'Apartment', emoji: '🧽', label: 'Did the dishes unprompted', pct: 2 },
-  { id: 'mess', group: 'Apartment', emoji: '🗑️', label: 'Left a mess for days', pct: -3 },
-  { id: 'durf', group: 'Apartment', emoji: '🚫', label: 'Durfed', pct: -5 },
-  { id: 'other', group: 'Other', emoji: '📝', label: 'Committee ruling', pct: 0 }
+export const CATEGORIES = [
+  { id: 'date', emoji: '🌹', label: 'Date' },
+  { id: 'romance', emoji: '💘', label: 'Romance' },
+  { id: 'life', emoji: '🏆', label: 'Life' },
+  { id: 'social', emoji: '🎲', label: 'Social' },
+  { id: 'apartment', emoji: '🧽', label: 'Apartment' },
+  { id: 'other', emoji: '📝', label: 'Other' }
 ]
-export const EVENT_BY_ID = Object.fromEntries(EVENT_TYPES.map((e) => [e.id, e]))
-export const PCT_LIMIT = 40 // no single filing moves a stock more than this
+export const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
 
 /* ---------- dates ---------- */
 
@@ -112,7 +93,6 @@ export const fmtPct = (p, digits = 2) => `${p > 0 ? '+' : p < 0 ? '−' : ''}${M
 
 export const fmtSigned = (x) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${fmtMoney(Math.abs(x))}`
 
-
 /* ---------- market record ---------- */
 
 export const initialMarket = (ipo) => ({
@@ -129,13 +109,15 @@ export const closedDays = (market) => Object.keys(market.closes).sort()
 // days since the listing's last filing (or the IPO), as of `day`
 export const idleDays = (market, name, day) => daysBetween(market.lastFiling[name] || market.ipo, day)
 
-// the depreciation a listing earns at this close, as a fraction (0 or negative)
+// the step down a listing earns at this close, as a fraction (0 or negative):
+// one step at the end of each full quiet week, up to the cap
 export const decayFor = (market, name, day) => {
   const idle = idleDays(market, name, day)
-  return idle >= IDLE_GRACE_DAYS && idle < IDLE_GRACE_DAYS + IDLE_SPAN_DAYS ? -IDLE_DECAY : 0
+  if (idle <= 0 || idle % IDLE_WEEK_DAYS !== 0) return 0
+  return idle / IDLE_WEEK_DAYS <= IDLE_MAX_WEEKS ? -IDLE_WEEKLY_DECAY : 0
 }
 
-// settle one day: apply any depreciation and record the close
+// settle one day: apply any step down and record the close
 export const closeDay = (market, day) => {
   if (market.closes[day]) return market
   const prices = {}
@@ -159,57 +141,15 @@ export const closeDay = (market, day) => {
   return { ...market, live: prices, closes: { ...market.closes, [day]: { prices, moves } } }
 }
 
-/* ---------- the dating ladder ---------- */
-
-const partnerKey = (p) => String(p || '').trim().toLowerCase()
-
-// rule on a date from the record of this listing's earlier dates
-export const dateRuling = (previousDates, day, partner) => {
-  const who = (partner && String(partner).trim()) || 'someone new'
-  const key = partnerKey(partner)
-  const same = key ? previousDates.filter((d) => d.partnerKey === key) : []
-  if (same.length) {
-    const last = same[same.length - 1]
-    const gap = daysBetween(last.day, day)
-    const n = same.length + 1
-    const nth = n === 2 ? 'Second' : n === 3 ? 'Third' : `${n}th`
-    if (gap > DATING.momentumWindow)
-      return { pct: DATING.rekindled, why: `${nth} date with ${who}, but ${gap} days after the last one. Rekindled, not momentum.` }
-    const pct = n === 2 ? DATING.second : n === 3 ? DATING.third : DATING.steady
-    return { pct, why: `${nth} date with ${who}, ${gap} ${gap === 1 ? 'day' : 'days'} after the last. Momentum.` }
-  }
-  const others = previousDates.filter((d) => d.partnerKey !== key || !key)
-  const recent = others.filter((d) => daysBetween(d.day, day) < DATING.jugglingWindow)
-  if (recent.length) {
-    const last = recent[recent.length - 1]
-    const gap = daysBetween(last.day, day)
-    return {
-      pct: DATING.juggling,
-      why: `First date with ${who} only ${gap} ${gap === 1 ? 'day' : 'days'} after a date with ${last.partner || 'someone else'}. Juggling: half credit.`
-    }
-  }
-  const last = previousDates[previousDates.length - 1]
-  if (!last) return { pct: DATING.first, why: `First date on record, with ${who}.` }
-  const gap = daysBetween(last.day, day)
-  return { pct: DATING.first, why: `First date with ${who}, ${gap} days since the last date. Full credit.` }
-}
-
 export const clampPct = (p) => Math.max(-PCT_LIMIT, Math.min(PCT_LIMIT, Number(p) || 0))
 
-// apply one ledger filing to the live price and record it
+// apply one ledger filing to the live price and record it. The percentage is
+// the committee's ruling; a filing without one changes nothing but is logged.
 export const applyFiling = (market, filing, index) => {
   const { name, day } = filing
   if (!NAMES.includes(name)) return market
-  const type = EVENT_BY_ID[filing.type] || EVENT_BY_ID.other
-  let pct
-  let auto = ''
-  if (filing.pct != null) pct = clampPct(filing.pct)
-  else if (type.id === 'date') {
-    const previous = market.events.filter((e) => e.name === name && e.type === 'date')
-    const ruling = dateRuling(previous, day, filing.partner)
-    pct = ruling.pct
-    auto = ruling.why
-  } else pct = clampPct(type.pct || 0)
+  const category = CATEGORY[filing.type] || CATEGORY.other
+  const pct = clampPct(filing.pct)
   const before = market.live[name]
   const after = Math.max(FLOOR_PRICE, round2(before * (1 + pct / 100)))
   const partner = filing.partner ? String(filing.partner).trim() : ''
@@ -218,15 +158,12 @@ export const applyFiling = (market, filing, index) => {
     seq: index,
     day,
     name,
-    type: type.id,
-    emoji: filing.emoji || type.emoji,
-    title:
-      (filing.title && String(filing.title).trim()) || (type.id === 'date' && partner ? `Date with ${partner}` : type.label),
+    type: category.id,
+    emoji: filing.emoji || category.emoji,
+    title: (filing.title && String(filing.title).trim()) || (category.id === 'date' && partner ? `Date with ${partner}` : category.label),
     partner,
-    partnerKey: partnerKey(partner),
     note: filing.note ? String(filing.note).trim() : '',
     verdict: filing.verdict ? String(filing.verdict).trim() : '',
-    auto,
     by: filing.by ? String(filing.by).trim() : '',
     ref: filing.ref || '',
     pct,
@@ -285,6 +222,23 @@ export const indexSeries = (market, today) => {
 }
 
 export const indexValue = (market) => avgOf(market.live)
+
+// the last `days` days of a series, keeping the point just before the window
+// so a line always has somewhere to start. 0 means everything.
+export const sliceRange = (points, today, days) => {
+  if (!days) return points
+  const from = addDays(today, -days)
+  const i = points.findIndex((p) => p.day >= from)
+  if (i <= 0) return points
+  return points.slice(i - 1)
+}
+
+export const RANGES = [
+  { id: '1w', label: '1W', days: 7 },
+  { id: '1m', label: '1M', days: 30 },
+  { id: '1y', label: '1Y', days: 365 },
+  { id: 'all', label: 'All', days: 0 }
+]
 
 // the reference price for "today's change": yesterday's close, else the IPO price
 export const previousClose = (market, name, today) => {
@@ -359,7 +313,7 @@ export const closingReport = (market, day) => {
     const tone = upCount >= 4 ? 'broadly higher' : upCount <= 1 ? 'broadly lower' : 'mixed'
     headline = `The board closed ${tone} on ${weekday} with ${filings.length} ${filings.length === 1 ? 'filing' : 'filings'}. ${TICKER[top]} led at ${fmtPct(close.moves[top].pct)}; ${TICKER[bottom]} brought up the rear at ${fmtPct(close.moves[bottom].pct)}.`
   } else if (movers.length) {
-    headline = `Quiet ${weekday} session: nothing crossed the desk. ${movers.length === NAMES.length ? 'Every listing' : movers.length === 1 ? `${TICKER[movers[0]]} alone` : `${movers.length} listings`} depreciated for want of news.`
+    headline = `Quiet ${weekday} session: nothing crossed the desk. ${movers.length === NAMES.length ? 'Every listing' : movers.length === 1 ? `${TICKER[movers[0]]} alone` : `${movers.length} listings`} marked a full quiet week with a step down.`
   } else headline = `Quiet ${weekday} session: nothing crossed the desk and the board held.`
 
   const lines = names.map((name) => {
@@ -372,9 +326,9 @@ export const closingReport = (market, day) => {
       if (own.length === 1) text += ` on the “${own[0].title}” filing (${fmtPct(own[0].pct)}).`
       else text += ` on ${own.length} filings: ${own.map((e) => `${e.title} (${fmtPct(e.pct)})`).join(', ')}.`
     } else if (mv.decayPct < 0) {
-      text = `${TICKER[name]} slipped ${fmtPct(mv.pct)} to ${fmtMoney(mv.to)}: ${mv.idle} days without a filing, so depreciation applies.`
-    } else if (mv.idle >= IDLE_GRACE_DAYS + IDLE_SPAN_DAYS) {
-      text = `${TICKER[name]} held at ${fmtMoney(mv.to)}, fully depreciated after ${mv.idle} quiet days.`
+      text = `${TICKER[name]} slipped ${fmtPct(mv.pct)} to ${fmtMoney(mv.to)}: ${mv.idle / IDLE_WEEK_DAYS} ${mv.idle === IDLE_WEEK_DAYS ? 'full week' : 'full weeks'} without a filing.`
+    } else if (mv.idle >= IDLE_WEEK_DAYS * IDLE_MAX_WEEKS) {
+      text = `${TICKER[name]} held at ${fmtMoney(mv.to)}, ${mv.idle} days quiet and fully marked down.`
     } else text = `${TICKER[name]} held at ${fmtMoney(mv.to)} with nothing to report.`
     return { name, text, pct: mv.pct }
   })

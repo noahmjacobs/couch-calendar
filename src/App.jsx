@@ -441,7 +441,8 @@ export default function App() {
             const id = `couch-${dStr}-${res.key}`
             if (existing[id]) return
             const when = rangeLabel(res.start, res.end)
-            const base = { name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), status: 'pending', source: 'couch' }
+            // a booking is a verified event, so it arrives already approved
+            const base = { names: [res.name], name: res.name, day: dStr, by: 'Couch App', at: new Date().toISOString(), status: 'approved', source: 'couch' }
             updates[`exchange/submissions/${id}`] =
               res.type === 'date'
                 ? {
@@ -450,7 +451,7 @@ export default function App() {
                     partner: res.guestName || '',
                     text: `Reserved the couch for a date with ${res.guestName || 'someone'}, ${when}.${res.details ? ` ${res.details}` : ''}`
                   }
-                : { ...base, category: 'apartment', partner: '', text: `Hosted on the couch, ${when}: ${res.details || 'an event'}.` }
+                : { ...base, category: 'social', partner: '', text: `Hosted on the couch, ${when}: ${res.details || 'an event'}.` }
           })
         })
         if (Object.keys(updates).length) await update(ref(db), updates)

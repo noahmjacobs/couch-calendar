@@ -17,11 +17,11 @@ exchange's About tab).
 ## Who can see what
 
 - **The exchange is public, the events are not.** Anyone with the link can
-  watch the board, open a ticker and report an event, with no sign-in. The
-  latest filings, the closing report, a ticker's filings and the whole Events
-  feed are blurred for anyone who is not signed in as a roommate, with a
-  sign-in button on top. A roommate who signs in on the Events tab sees
-  everything; Noah also gets Approve and Reject.
+  watch the board, pick which listings and which range the chart shows, open
+  a ticker and report an event, with no sign-in. That is all they see:
+  prices. The filings, the closing report and the Events feed appear only for
+  a roommate signed in with Google (the sign-in row is at the bottom of the
+  Events tab); Noah also gets Approve and Reject.
 - **The couch calendar is roommates only.** It asks for a Google sign-in; the
   first time an account signs in it picks which roommate it is, and that
   claim is permanent (stored under `members/{uid}` and `claims/{name}`, so it
@@ -37,43 +37,45 @@ exchange's About tab).
 
 ## The daily routine
 
-1. **Anyone reports an event** on the Events tab: pick the roommate, the kind
-   of thing (date, romance, life, apartment, other), what happened, when, and
-   who is reporting. It posts to the Events page immediately as *pending*.
-   **Couch bookings report themselves:** the first time a roommate opens the
-   Couch App after a booking's day has ended, that booking lands on the
-   Events page as a pending event tagged "Couch App" (a date booking carries
-   the guest's name). A booking for next Thursday shows up on Friday, never
-   before.
+1. **Anyone reports an event** on the Events tab: pick the roommate (or
+   several, or everyone), the kind of thing, what happened and when. A
+   signed-in roommate reports as themselves, always; anyone else types a
+   name or stays anonymous. It posts to the Events page immediately as
+   *pending*. **Couch bookings report themselves:** the first time a
+   roommate opens the Couch App after a booking's day has ended, that booking
+   lands on the Events page already approved and tagged "Couch App" (a date
+   booking carries the guest's name). A booking for next Thursday shows up on
+   Friday, never before.
 2. **Noah confirms.** On Noah's phone (the one the Couch App is signed in as
    Noah) each pending event shows Approve and Reject. Approved events wait
    for the ruling.
-3. **The committee rules** at the close. The committee is Claude, in the chat
-   where this app is built. Noah taps *Copy approved events* on the Events
-   tab and pastes the text into the chat (or, once the cloud environment can
-   reach `couch-reservation-default-rtdb.firebaseio.com`, Claude reads the
-   approved events straight from the database). Claude rules on each one,
-   appends a filing to the ledger with its reasoning, and pushes. The deploy
-   moves the board. A filing that carries the submission's id (`ref`) marks
-   that submission as *filed* on the Events page.
+3. **The committee rules.** The committee is Claude, in the chat where this
+   app is built. Noah says the word, Claude reads the approved events from
+   the database (through a short-lived script on Railway, since the build
+   sandbox cannot reach Firebase directly), rules on each one, appends the
+   filings to the ledger with its reasoning, and pushes. The deploy moves the
+   board. A filing that carries the submission's id (`ref`) marks that
+   submission as *filed* on the Events page.
 
 ## How prices move
 
 Nothing in the app explains the pricing, on purpose: like a real stock,
 nobody knows in advance how much an event is worth. A listing is the
 market's read on that roommate at any given moment, sometimes inflated,
-sometimes deflated. The committee weighs each confirmed event against the
-listing's history and what it means for it, and publishes its reasoning with
-the filing.
+sometimes deflated.
 
-The engine does carry a private baseline the committee starts from (in
-`market.js`): nothing moves without a filing; a listing that goes 7 days
-without one depreciates 0.4% a day for up to 25 days, then levels off; dates
-climb a ladder (first date +10%, a first date with someone new within a week
-of another date +5%, second date with the same person inside two weeks +15%,
-third +18%, fourth and on +20%, a repeat after a long gap +10%, making it
-official +25%); and the other standard events have default impacts. Every
-filing carries the committee's own `pct`, which overrides all of it. No
+**The engine carries no formulas.** Every filing in the ledger carries the
+percentage the committee ruled, after weighing the roommate's history, how
+expected the event was, and how much it really means. A surprise girlfriend
+is a jump; a girlfriend after five dates with the same person is largely
+priced in. Getting stood up once stings; getting stood up for the fourth
+time is mostly already in the price. A good deed at church counts. A game
+night everyone went to is a little for everyone. The categories (date,
+romance, life, social, apartment, other) are flavour and supply the emoji.
+
+The only automatic movement: a listing that goes a **full week** without a
+filing steps down 2% at the close of that seventh day, again a week later,
+and so on, up to four steps; then it holds until something happens. No
 single filing moves a listing more than 40%; nothing trades below $1.00.
 
 ## Filing an event (for the committee)
@@ -85,10 +87,9 @@ date order, commit, push:
 {
   day: '2026-10-16',          // the trading day it happened
   name: 'Jonas',              // Noah | Bryon | Jonas | Andrew | James
-  type: 'date',               // optional: an id from EVENT_TYPES in market.js
-  partner: 'Maya',            // dates only: who with, so the ladder can count
-  pct: 8,                     // optional: the ruling in percent, overriding the
-                              // standard impact or the ladder
+  type: 'date',               // a category id from CATEGORIES in market.js
+  partner: 'Maya',            // dates only: who with
+  pct: 8,                     // the ruling, in percent
   title: 'Date with Maya',    // optional, defaults to the type's label
   note: 'Dinner downtown.',   // the facts, as reported
   verdict: 'Full credit.',    // the committee's reasoning, published with the filing
@@ -179,17 +180,17 @@ old Couch App cannot read reservations under them.
 ## What is in the app
 
 - **Market**: ticker tape, the BOYO 5 index (the average of the five), the
-  ranked listings with sparklines and today's change, every listing on one
-  chart since the IPO, the latest filings, and the previous day's closing
-  report.
+  ranked listings with sparklines and today's change, a chart of any mix of
+  listings over 1W, 1M, 1Y or all time, and for roommates a collapsible list
+  of filings and the previous day's closing report.
 - **Ticker page**: the price, today's change, the full price chart (hover or
   arrow keys for a day's value; a table view underneath), stats including how
   long the listing has been quiet and its last filing, a button to report
   something about that roommate, and that roommate's filings.
-- **Events**: the report button, what is awaiting review and awaiting a
-  ruling, every filing grouped by day with the ladder's reasoning and the
-  committee's verdict, and resolved submissions. Noah also sees the committee
-  desk with the export.
+- **Events**: the report button, and for roommates what is awaiting review
+  and awaiting a ruling, every filing grouped by day with the committee's
+  verdict, and resolved submissions. Noah also sees the committee desk with
+  the counts.
 - **About**: how the exchange works in a paragraph (no numbers), a theme
   toggle, a share button, and the link to the calendar.
 
@@ -204,7 +205,7 @@ Demo data never touches the real ledger or database.
 | File | What it does |
 |---|---|
 | `src/exchange/ledger.js` | The source of truth: the IPO date and every filing |
-| `src/exchange/market.js` | Pure pricing engine: rebuilds the board from the ledger, depreciation, the dating ladder, series, stats, the closing report |
+| `src/exchange/market.js` | Pure pricing engine: rebuilds the board from the ledger, the weekly step down, series, ranges, stats, the closing report |
 | `src/exchange/market.test.mjs` | Unit tests for the engine (`npm test`) |
 | `src/exchange/charts.jsx` | SVG sparkline, price chart and all-listings chart with crosshair tooltips and table views |
 | `src/exchange/Exchange.jsx` | The app: routing, pages, the report form, review controls, theme, profile photos |
