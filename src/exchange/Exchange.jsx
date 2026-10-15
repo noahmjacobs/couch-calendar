@@ -27,6 +27,7 @@ import {
   rankings,
   eventList,
   tickerStats,
+  rangeChange,
   closedDays,
   closingReport,
   sliceRange,
@@ -269,6 +270,7 @@ const ChartControls = ({ view, listings = true }) => (
 )
 
 const rangeDays = (id) => (RANGES.find((r) => r.id === id) || RANGES[RANGES.length - 1]).days
+const windowLabel = (id) => ({ '1w': 'Past week', '1m': 'Past month', '1y': 'Past year' }[id] || 'Since IPO')
 
 const namesOf = (s) => (Array.isArray(s.names) && s.names.length ? s.names.filter((n) => NAMES.includes(n)) : NAMES.includes(s.name) ? [s.name] : [])
 
@@ -468,7 +470,6 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
       </span>
     )
   })
-  const rangeLabel = (RANGES.find((r) => r.id === view.range) || RANGES[3]).label
 
   return (
     <div className="stack">
@@ -585,7 +586,7 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
         <div className="group-head">
           <span className="group-label">{view.picked.length === NAMES.length ? 'All listings' : listNames(view.picked)}</span>
           <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-            {view.range === 'all' ? 'Since IPO' : `Past ${rangeLabel.toLowerCase() === '1w' ? 'week' : rangeLabel === '1M' ? 'month' : 'year'}`}
+            {windowLabel(view.range)}
           </span>
         </div>
         <div className="card tight">
@@ -621,13 +622,13 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
             <div className="group-head">
               <span className="group-label">Events by roommate</span>
               <span className="group-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
-                {events.length} on record
+                {windowLabel(view.range)}
               </span>
             </div>
             <div className="list">
               {ranked.map((n) => {
                 const own = events.filter((e) => e.name === n)
-                const st = tickerStats(market, n, today)
+                const ch = rangeChange(market, n, today, windowDays)
                 const ups = own.filter((e) => e.pct > 0).length
                 const downs = own.filter((e) => e.pct < 0).length
                 return (
@@ -642,7 +643,7 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
                       </div>
                       <div className="col-right">
                         <span className="price">{fmtMoney(market.live[n])}</span>
-                        <Delta pct={st.sinceIpoPct} />
+                        <Delta pct={ch.pct} />
                       </div>
                       <Chevron />
                     </summary>
@@ -657,7 +658,10 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
                 )
               })}
             </div>
-            <p className="footnote">Since the IPO. Tap a name for the full history; every event is on the Events tab.</p>
+            <p className="footnote">
+              {view.range === 'all' ? 'Change since the IPO' : `Change over the ${windowLabel(view.range).toLowerCase()}`}, following the chart. Tap a name for the full history; every event is
+              on the Events tab.
+            </p>
           </div>
           <Report report={report} />
         </>

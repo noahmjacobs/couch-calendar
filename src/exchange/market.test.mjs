@@ -11,6 +11,8 @@ import {
   applyFiling,
   initialMarket,
   priceSeries,
+  rangeChange,
+  round2,
   indexSeries,
   dayChange,
   indexChange,
@@ -230,4 +232,16 @@ test('the Brindex opens at the IPO price and steps with each report', () => {
   assert.equal(ch.report.id, 'r3')
   // a partial report counts the ratings it has
   assert.ok(Math.abs(brindexMove({ Noah: 8, Bryon: 8 }) - 0.06) < 1e-9)
+})
+
+test('rangeChange follows the chart window', () => {
+  const m = buildMarket([{ day: d(1), name: 'Noah', pct: 10 }, { day: d(33), name: 'Noah', pct: 10 }], IPO, d(35))
+  const series = priceSeries(m, 'Noah', d(35))
+  const last = series[series.length - 1].price
+  // all time: against the IPO price
+  assert.equal(rangeChange(m, 'Noah', d(35), 0).pct, round2(((last - IPO_PRICE) / IPO_PRICE) * 100))
+  // one week: against the close just before the window opens
+  const base = series.find((p) => p.day === d(27) && !p.label).price
+  assert.equal(rangeChange(m, 'Noah', d(35), 7).pct, round2(((last - base) / base) * 100))
+  assert.equal(rangeChange(m, 'Noah', d(35), 7).abs, round2(last - base))
 })

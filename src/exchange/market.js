@@ -345,6 +345,15 @@ export const tickerStats = (market, name, today) => {
   }
 }
 
+// the move over a chart window: today's price against the point the window
+// starts from (the close just before it, or the IPO when days is 0)
+export const rangeChange = (market, name, today, days) => {
+  const pts = sliceRange(priceSeries(market, name, today), today, days)
+  const from = pts[0].price
+  const now = pts[pts.length - 1].price
+  return { abs: round2(now - from), pct: from ? round2(((now - from) / from) * 100) : 0 }
+}
+
 /* ---------- the desk's closing report ---------- */
 
 const pick = (arr, seed) => arr[mod(hashString(seed), arr.length)]
