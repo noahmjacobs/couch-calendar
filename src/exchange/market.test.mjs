@@ -25,7 +25,8 @@ import {
   brindexValue,
   brindexChange,
   brindexMove,
-  BRINDEX_STEP,
+  BRINDEX_SWING,
+  withoutWithdrawn,
   addDays,
   daysBetween,
   fmtPct,
@@ -215,23 +216,27 @@ test('the Brindex opens at the IPO price and steps with each report', () => {
     r2: { day: d(9), ratings: { Noah: 5, Bryon: 5, Jonas: 5, Andrew: 5, James: 5 }, by: 'Britta', at: 'b' },
     r3: { day: d(16), ratings: { Noah: 0, Bryon: 0, Jonas: 0, Andrew: 0, James: 0 }, by: 'Britta', at: 'c' }
   }
-  assert.equal(brindexMove(reports.r1.ratings), BRINDEX_STEP)
+  assert.equal(brindexMove(reports.r1.ratings), BRINDEX_SWING)
   assert.equal(brindexMove(reports.r2.ratings), 0)
-  assert.equal(brindexMove(reports.r3.ratings), -BRINDEX_STEP)
+  assert.equal(brindexMove(reports.r3.ratings), -BRINDEX_SWING)
   const s = brindexSeries(reports, IPO, d(20))
   const on = (k) => s.find((p) => p.day === d(k) && !p.label).price
   assert.equal(on(1), 100)
-  assert.equal(on(2), 110) // the day of the first report
-  assert.equal(on(9), 110) // flat through the neutral report
-  assert.equal(on(16), 99) // 110 * 0.9
+  assert.equal(on(2), 150) // the day of the first report: all 10s is +50%
+  assert.equal(on(9), 150) // flat through the neutral report
+  assert.equal(on(16), 75) // all 0s is -50%
   assert.equal(s[s.length - 1].live, true)
-  assert.equal(brindexValue(reports, IPO, d(20)), 99)
+  assert.equal(brindexValue(reports, IPO, d(20)), 75)
   const ch = brindexChange(reports, IPO, d(20))
-  assert.equal(ch.prev, 110)
-  assert.equal(ch.pct, -10)
+  assert.equal(ch.prev, 150)
+  assert.equal(ch.pct, -50)
   assert.equal(ch.report.id, 'r3')
-  // a partial report counts the ratings it has
-  assert.ok(Math.abs(brindexMove({ Noah: 8, Bryon: 8 }) - 0.06) < 1e-9)
+  // a partial report counts the ratings it has: an average of 8 is +30%
+  assert.ok(Math.abs(brindexMove({ Noah: 8, Bryon: 8 }) - 0.3) < 1e-9)
+  // a withdrawn report no longer moves the index
+  const w = buildMarket([{ withdrawn: true, brindex: 'r3', note: 'a test' }], IPO, d(20))
+  assert.deepEqual(w.brindexWithdrawn, ['r3'])
+  assert.equal(brindexValue(withoutWithdrawn(reports, w.brindexWithdrawn), IPO, d(20)), 150)
 })
 
 test('rangeChange follows the chart window', () => {

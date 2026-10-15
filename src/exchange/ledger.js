@@ -31,6 +31,9 @@
 //
 // A withdrawal removes a report from the app without ruling on it:
 //   { withdrawn: true, ref: '-OabcXYZ', note: 'why' }
+// and one with `brindex` instead of `ref` removes a Brindex report, so it no
+// longer moves that index:
+//   { withdrawn: true, brindex: '-OabcXYZ', note: 'why' }
 
 export const IPO = '2026-08-01'
 

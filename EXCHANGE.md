@@ -68,15 +68,18 @@ Once a week someone sends her the form at `/#/brindex` (the You tab has a
 form is one slider per roommate, 0 to 10, an optional comment, Submit;
 under a minute.
 
-The index opens at 100 on the IPO date and moves with each report: the
-average rating above 5 pushes it up, below 5 pulls it down, at most 10% per
-report (an average of 7.5 is +5%, of 2.5 is −5%). Nothing moves it between
-reports. The index value is public; her per-roommate ratings and comment
-show only to signed-in roommates, in the "Latest Brindex report" card on
-the market page. Both indexes can be added to the market chart with the
-BOYO 5 and Brindex pills, drawn dashed next to the listings. Reports are
-stored under `exchange/brindex`; a bad one can be deleted by Noah's account
-or hidden by the committee like any report.
+The index opens at 100 on the IPO date and moves with each report, and it
+is meant to be wild: every point of average above 5 is +10%, every point
+below is −10% (an average of 7 is +20%, of 2 is −30%, all 10s is +50%).
+Pure arithmetic, no committee; it moves the moment she submits, and it
+affects nothing else. Nothing moves it between reports. The form is always
+filed under Britta's name. The index value is public; her per-roommate
+ratings and comment show only to signed-in roommates, in the collapsed
+"Latest Brindex report" card on the market page, which has a Delete button
+for Noah. Both indexes can be added to the market chart with the BOYO 5 and
+Brindex pills, drawn dashed next to the listings. Reports are stored under
+`exchange/brindex`; a bad one can be deleted by Noah's account or withdrawn
+by the committee with a `{ withdrawn: true, brindex: '<id>' }` ledger entry.
 
 ## How prices move
 

@@ -36,7 +36,8 @@ import {
   brindexReports,
   brindexAverage,
   BRINDEX_NAME,
-  BRINDEX_MAX
+  BRINDEX_MAX,
+  withoutWithdrawn
 } from './market.js'
 import { Sparkline, PriceChart, MultiChart } from './charts.jsx'
 
@@ -431,7 +432,7 @@ const AccountRow = ({ account }) =>
 
 /* ---------- pages ---------- */
 
-const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
+const MarketPage = ({ market, today, go, waiting, insider, reviewer, view, brindex, onRemoveBrindex }) => {
   const ranked = rankings(market)
   const idx = indexChange(market, today)
   const idxPts = indexSeries(market, today).map((p) => p.price)
@@ -502,12 +503,16 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
       </div>
 
       {insider && latest ? (
-        <div className="card">
-          <div className="report-head">
-            <h3>Latest {BRINDEX_NAME} report</h3>
-            <span className="report-when">{fmtDay(latest.day, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-          </div>
-          <div className="ratings">
+        <details className="card fold">
+          <summary>
+            <div className="report-head">
+              <h3>Latest {BRINDEX_NAME} report</h3>
+              <span className="report-when">{fmtDay(latest.day, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+              <Chevron />
+            </div>
+            <div className="row-sub">Average {brindexAverage(latest.ratings).toFixed(1)} of {BRINDEX_MAX}. Tap to see her ratings.</div>
+          </summary>
+          <div className="ratings" style={{ marginTop: 12 }}>
             {ranked.map((n) => {
               const r = Number(latest.ratings[n])
               const v = Number.isFinite(r) ? r : null
@@ -523,12 +528,19 @@ const MarketPage = ({ market, today, go, waiting, insider, view, brindex }) => {
               )
             })}
           </div>
-          <p className="report-lede" style={{ marginTop: 10 }}>
-            Average {brindexAverage(latest.ratings).toFixed(1)} of {BRINDEX_MAX}
-            {latest.comment ? ` · “${latest.comment}”` : ''}
-            {latest.by ? ` — ${latest.by}` : ''}
-          </p>
-        </div>
+          {latest.comment ? (
+            <p className="report-lede" style={{ marginTop: 10 }}>
+              “{latest.comment}”{latest.by ? ` — ${latest.by}` : ''}
+            </p>
+          ) : null}
+          {reviewer ? (
+            <div className="btn-row" style={{ marginTop: 10 }}>
+              <button type="button" className="chip small" onClick={() => onRemoveBrindex(latest)}>
+                Delete this report
+              </button>
+            </div>
+          ) : null}
+        </details>
       ) : insider ? (
         <div className="card tight">
           <div className="row-title">No {BRINDEX_NAME} report yet</div>
@@ -989,11 +1001,12 @@ const ReportPage = ({ market, today, account, preset, onSubmit, go, dbError }) =
   )
 }
 
-// Britta's weekly form: one slider per roommate, a comment, done
+// Britta's weekly form: one slider per roommate, a comment, done. It is her
+// form, so every report is filed under her name.
+const BRINDEX_BY = 'Britta'
 const BrindexPage = ({ today, onSubmit, go, dbError }) => {
   const [ratings, setRatings] = useState(() => Object.fromEntries(NAMES.map((n) => [n, 5])))
   const [comment, setComment] = useState('')
-  const [by, setBy] = useState(() => load('exchange.brindex.by', 'Britta'))
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
@@ -1005,8 +1018,7 @@ const BrindexPage = ({ today, onSubmit, go, dbError }) => {
     setBusy(true)
     setError('')
     try {
-      save('exchange.brindex.by', by.trim() || 'Britta')
-      await onSubmit({ day: today, ratings, comment: comment.trim(), by: by.trim() || 'Britta', at: new Date().toISOString() })
+      await onSubmit({ day: today, ratings, comment: comment.trim(), by: BRINDEX_BY, at: new Date().toISOString() })
       setDone(true)
     } catch (err) {
       setError(err && err.message ? err.message : 'Could not send the report.')
@@ -1019,7 +1031,7 @@ const BrindexPage = ({ today, onSubmit, go, dbError }) => {
     return (
       <div className="stack">
         <div className="card" style={{ textAlign: 'center' }}>
-          <div className="gate-title">Thank you, {by.trim() || 'Britta'}.</div>
+          <div className="gate-title">Thank you, {BRINDEX_BY}.</div>
           <p className="gate-sub" style={{ marginTop: 8 }}>
             The {BRINDEX_NAME} has your read for the week. Average {avg.toFixed(1)} of {BRINDEX_MAX}.
           </p>
@@ -1074,15 +1086,13 @@ const BrindexPage = ({ today, onSubmit, go, dbError }) => {
         <span className="field-label">Anything to add? (optional)</span>
         <textarea className="input" placeholder="Shout-outs, concerns, observations…" value={comment} onChange={(e) => setComment(e.target.value)} />
       </div>
-      <div className="field">
-        <span className="field-label">Your name</span>
-        <input className="input" type="text" value={by} onChange={(e) => setBy(e.target.value)} />
-      </div>
       {error ? <div className="banner">{error}</div> : null}
       <button type="submit" className="primary" disabled={busy}>
         {busy ? 'Sending…' : `Submit this week's ${BRINDEX_NAME}`}
       </button>
-      <p className="footnote center">Your ratings and comments are only seen by the household. The index they move is public.</p>
+      <p className="footnote center">
+        Filed as {BRINDEX_BY}. Your ratings and comments are only seen by the household. The index they move is public.
+      </p>
     </form>
   )
 }
@@ -1587,6 +1597,28 @@ export default function Exchange() {
     }
   }
 
+  const brindex = useMemo(() => withoutWithdrawn(rawBrindex, market.brindexWithdrawn), [rawBrindex, market])
+
+  // only the reviewer's account may delete a Brindex report; the database
+  // rule checks it against the Noah claim
+  const removeBrindex = async (r) => {
+    if (!window.confirm(`Delete the ${BRINDEX_NAME} report from ${fmtDay(r.day)}? The index will move back.`)) return
+    if (DEMO) {
+      setRawBrindex((prev) => {
+        const next = { ...prev }
+        delete next[r.id]
+        return next
+      })
+      return
+    }
+    try {
+      await remove(ref(db, `exchange/brindex/${r.id}`))
+      setToast('Report deleted')
+    } catch (error) {
+      setToast(describeAuthError(error))
+    }
+  }
+
   const submitBrindex = async (record) => {
     if (DEMO) {
       setRawBrindex((prev) => ({ ...prev, [`demo-${Date.now().toString(36)}`]: record }))
@@ -1725,7 +1757,7 @@ export default function Exchange() {
           ) : tab === 'about' ? (
             <AboutPage theme={theme} setTheme={setTheme} onShare={share} onShareBrindex={shareBrindex} account={account} settings={settings} />
           ) : (
-            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} view={marketView} brindex={rawBrindex} />
+            <MarketPage market={market} today={today} go={go} waiting={waiting} insider={insider} reviewer={reviewer} view={marketView} brindex={brindex} onRemoveBrindex={removeBrindex} />
           )}
         </main>
           </>

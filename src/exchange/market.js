@@ -38,12 +38,13 @@ export const PCT_LIMIT = 40 // no single filing moves a listing more than this
 /* ---------- the Brindex ---------- */
 
 // Britta's weekly read on the household: one rating per roommate, 0 to 10.
-// The index opens at the IPO price and moves with each report: the average
-// rating above the midpoint pushes it up, below pulls it down, at most
-// BRINDEX_STEP per report. Nothing moves it between reports.
+// The index opens at the IPO price and moves with each report, and it is
+// meant to be wild: every point of average above 5 is +10%, every point
+// below is -10%, so a report of all 10s is +50% and all 0s is -50%.
+// Nothing moves it between reports, and nothing else is affected by it.
 export const BRINDEX_NAME = 'Brindex'
 export const BRINDEX_MAX = 10
-export const BRINDEX_STEP = 0.1
+export const BRINDEX_SWING = 0.5 // the move for an average of 10 (or 0)
 
 export const brindexReports = (raw) =>
   Object.entries(raw || {})
@@ -51,13 +52,19 @@ export const brindexReports = (raw) =>
     .filter((r) => r && r.ratings && typeof r.ratings === 'object' && r.day)
     .sort((a, b) => a.day.localeCompare(b.day) || (a.at || '').localeCompare(b.at || ''))
 
+// the raw reports minus the ones the committee withdrew
+export const withoutWithdrawn = (raw, ids) => {
+  const gone = new Set(ids || [])
+  return Object.fromEntries(Object.entries(raw || {}).filter(([id]) => !gone.has(id)))
+}
+
 export const brindexAverage = (ratings) => {
   const vals = NAMES.map((n) => Number(ratings[n])).filter((v) => Number.isFinite(v))
   if (!vals.length) return BRINDEX_MAX / 2
   return vals.reduce((a, b) => a + b, 0) / vals.length
 }
 
-export const brindexMove = (ratings) => ((brindexAverage(ratings) - BRINDEX_MAX / 2) / (BRINDEX_MAX / 2)) * BRINDEX_STEP
+export const brindexMove = (ratings) => ((brindexAverage(ratings) - BRINDEX_MAX / 2) / (BRINDEX_MAX / 2)) * BRINDEX_SWING
 
 // one point per trading day, aligned with the price series: the value holds
 // between reports and steps on the day a report comes in
@@ -163,7 +170,9 @@ export const initialMarket = (ipo) => ({
   // the last day each listing had a filing; the idle clock runs from here
   lastFiling: Object.fromEntries(NAMES.map((n) => [n, ipo])),
   // submission ids the committee withdrew: hidden in the app, never ruled on
-  withdrawn: []
+  withdrawn: [],
+  // Brindex report ids the committee withdrew: they no longer move the index
+  brindexWithdrawn: []
 })
 
 export const closedDays = (market) => Object.keys(market.closes).sort()
@@ -249,6 +258,7 @@ export const buildMarket = (ledger, ipo, today) => {
     // a withdrawal names a submission and nothing else: no price, no filing
     if (f.withdrawn) {
       if (f.ref) m = { ...m, withdrawn: [...m.withdrawn, f.ref] }
+      if (f.brindex) m = { ...m, brindexWithdrawn: [...m.brindexWithdrawn, f.brindex] }
       return
     }
     if (!f.day || !f.name) return

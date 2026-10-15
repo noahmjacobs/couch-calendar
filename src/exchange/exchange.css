@@ -817,6 +817,30 @@ button.row:active {
   justify-content: space-between;
   gap: 10px;
 }
+/* a card that folds: the summary is its header, closed by default */
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.fold > summary::-webkit-details-marker {
+  display: none;
+}
+details.fold > summary .report-head {
+  align-items: center;
+}
+details.fold > summary .report-when {
+  margin-left: auto;
+}
+details.fold > summary .chev {
+  transition: transform 0.18s;
+}
+details[open].fold > summary .chev {
+  transform: rotate(90deg);
+}
+details.fold > summary .row-sub {
+  margin-top: 4px;
+  white-space: normal;
+}
 .report-head h3 {
   font-size: 17px;
   font-weight: 700;
