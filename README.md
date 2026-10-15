@@ -13,9 +13,10 @@ A simple shared calendar to reserve your apartment couch. No overbooking allowed
 
 ## 📈 449 Exchange
 
-The same deploy also serves the roommate stock market at `/exchange/`. Prices
-move on events the household reports; see [EXCHANGE.md](EXCHANGE.md) for the
-rules, the impact guide, and how a filing is made.
+The same build also serves the roommate stock market at `/exchange/`, or at
+the root of its own Railway service with `APP=exchange`. Prices move on
+events the household reports; see [EXCHANGE.md](EXCHANGE.md) for the rules,
+the hosting setup, and how a filing is made.
 
 ## Setup
 

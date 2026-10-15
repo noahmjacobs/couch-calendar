@@ -6,13 +6,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "vite preview --host 0.0.0.0 --port ${PORT:-3000}",
+    "start": "node server.js",
     "test": "node --test \"src/**/*.test.mjs\""
   },
   "dependencies": {
+    "firebase": "^10.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "firebase": "^10.5.0"
+    "sirv": "^3.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

@@ -50,6 +50,10 @@ const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
 // Couch App signed this phone in as.
 const REVIEWER = 'Noah'
 
+// where the Couch App lives. On a shared domain it is the root; when the
+// exchange runs on its own Railway service, VITE_COUCH_URL points across.
+const COUCH_URL = import.meta.env.VITE_COUCH_URL || '/'
+
 /* ---------- demo data (?demo in the URL) ---------- */
 
 const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
@@ -959,7 +963,7 @@ const AboutPage = ({ theme, setTheme, onShare }) => (
         </div>
         <Chevron />
       </button>
-      <a className="row" href="/" style={{ textDecoration: 'none' }}>
+      <a className="row" href={COUCH_URL} style={{ textDecoration: 'none' }}>
         <div className="row-main">
           <div className="row-title">Open the Couch App</div>
           <div className="row-sub">Back to the calendar</div>
@@ -1087,7 +1091,8 @@ export default function Exchange() {
   }
 
   const share = async () => {
-    const url = `${location.origin}/exchange/`
+    // the page's own address, whether it is served at /exchange/ or at the root
+    const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}`
     try {
       if (navigator.share) await navigator.share({ title: '449 Exchange', text: 'The roommate stock market.', url })
       else {

@@ -101,11 +101,42 @@ Filings dated before the IPO count on opening day. Filings are applied in
 ledger order, day by day, and the whole board is rebuilt from the ledger on
 every load, so a backdated filing lands exactly where it belongs in the chart.
 
+## Hosting on Railway
+
+One repo, two Railway services, one Firebase project.
+
+**The Couch App service you already have** keeps deploying as before. Once
+the `exchange` branch is merged into `main`, that service also serves the
+exchange at `https://<couch-domain>/exchange/`, and the Couch App's Settings
+tab links to it.
+
+**A second service gives the exchange its own link.** In the Railway
+dashboard:
+
+1. In the project, **New → GitHub Repo** and pick this same repository.
+2. Under the new service's **Settings → Source**, set the branch (`exchange`
+   now, or `main` once merged).
+3. Under **Variables**, add `APP` = `exchange`. That makes the server put the
+   exchange at the root of this service's domain instead of under
+   `/exchange/`.
+4. Under **Settings → Networking**, **Generate Domain** (or attach a custom
+   one). That is the exchange's link.
+5. Optional: add `VITE_COUCH_URL` = the Couch App's URL so the "Open the Couch
+   App" row on the About tab points across, and on the Couch App's service add
+   `VITE_EXCHANGE_URL` = the exchange's URL so its Settings link does the same.
+
+Railway builds with `npm run build` and starts with `npm start`, which runs
+`server.js`: a small static server that serves `dist/` and, when `APP` is
+`exchange`, answers `/` with the exchange page. Nothing else differs between
+the two services.
+
 ## Firebase
 
-Submitted events are stored in the Couch App's Realtime Database under
-`exchange/submissions`. The rules need an `exchange` entry with read and
-write allowed, alongside `reservations` and `profiles`:
+The exchange uses the same Firebase project and Realtime Database as the
+Couch App, with the config already in `src/firebase.js`; there is nothing new
+to connect. Submitted events are stored under `exchange/submissions`. The
+database rules need an `exchange` entry with read and write allowed,
+alongside `reservations` and `profiles`:
 
 ```json
 {
@@ -155,4 +186,6 @@ Demo data never touches the real ledger or database.
 | `src/exchange/Exchange.jsx` | The app: routing, pages, the report form, review controls, theme, profile photos |
 | `src/exchange/exchange.css` | Styles, light and dark |
 | `exchange/index.html` | The second Vite entry, served at `/exchange/` |
+| `server.js` | The production server: `dist/` at `/`, or the exchange at the root when `APP=exchange` |
+| `public/exchange/manifest.json` | Web app manifest so the exchange can be added to a home screen |
 | `src/roommates.js` | The roster and colours, shared with the Couch App |

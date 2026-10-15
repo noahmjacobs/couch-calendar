@@ -1043,7 +1043,7 @@ export default function App() {
       <div className="group">
         <div className="group-label">More</div>
         <div className="glass-list">
-          <a className="list-row rm-row" href="/exchange/">
+          <a className="list-row rm-row" href={import.meta.env.VITE_EXCHANGE_URL || '/exchange/'}>
             <span className="xchg-mark" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 18 18">
                 <path d="M2 13l4-5 3 3 4-6 3 3" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
