@@ -24,8 +24,8 @@
 // Filings are applied in the order they appear here, day by day. Keep the list
 // in chronological order so the record reads top to bottom.
 
-export const IPO = '2026-10-14'
+export const IPO = '2026-08-01'
 
 export const LEDGER = [
-  // no filings yet: everyone opened at $100.00 on Wednesday, October 14, 2026
+  // no filings yet: everyone opened at $100.00 on Saturday, August 1, 2026
 ]

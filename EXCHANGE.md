@@ -1,7 +1,7 @@
 # 📈 449 Exchange
 
 The official roommate stock market of 449. Five listings, one per roommate,
-each opened at **$100.00** on **Wednesday, October 14, 2026** with 10,000 shares
+each opened at **$100.00** on **Saturday, August 1, 2026** with 10,000 shares
 outstanding. It lives at **`/exchange/`** on the same deploy as the Couch App
 (there is a link in the Couch App's Settings, and "Open the Couch App" on the
 exchange's About tab).
