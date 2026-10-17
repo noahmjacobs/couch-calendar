@@ -312,7 +312,7 @@ const Filing = ({ e, showName = true, onName }) => (
 
 const Submission = ({ s, reviewer, onDelete, filed, onName }) => {
   // once ruled, the report wears the committee's category, which may differ
-  const cat = CATEGORY[(filed && filed.length === 1 && filed[0].type) || s.category] || CATEGORY.other
+  const cat = CATEGORY[(filed && filed[0] && filed[0].type) || s.category] || CATEGORY.other
   const names = namesOf(s)
   return (
     <div className="sub">

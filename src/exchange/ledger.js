@@ -30,7 +30,9 @@
 // Filings are applied in the order they appear here, day by day. Keep the list
 // in chronological order so the record reads top to bottom. An event that
 // involves several roommates is one filing per roommate, each with its own
-// percentage.
+// percentage; that includes a reporter who is part of the story they report,
+// whom the committee may rule on as well. Filings that share a `ref` show
+// together on that report in the app.
 //
 // A withdrawal removes a report from the app without ruling on it:
 //   { withdrawn: true, ref: '-OabcXYZ', note: 'why' }
@@ -334,6 +336,17 @@ export const LEDGER = [
     pct: -1,
     note: 'Accused Noah of not seeing cockroaches when Noah says he sees them. Reported as Apartment; filed by the committee as Minute.',
     verdict: 'A dispute over cockroach sightings is a governance matter, not a pest matter. Minute: the desk notes the friction and the possibility of cockroaches, and moves on.',
+    by: 'Noah',
+    ref: '-P479Px7GwOLbGbWy5hm'
+  },
+  {
+    day: '2026-10-16',
+    name: 'Noah',
+    type: 'minute',
+    title: 'Took the cockroach dispute to the exchange',
+    pct: -1,
+    note: 'The other party to the cockroach dispute, and the one who reported it. Says he sees cockroaches; Bryon doubts him.',
+    verdict: 'Two parties, one dispute, no cockroach in evidence. The reporter is in the story he reported, so he is in the ruling: a point for taking it to the exchange, as Bryon lost a point for doubting him. Minute.',
     by: 'Noah',
     ref: '-P479Px7GwOLbGbWy5hm'
   },
