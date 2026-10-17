@@ -350,6 +350,28 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P479Px7GwOLbGbWy5hm'
   },
+  {
+    day: '2026-10-16',
+    name: 'Noah',
+    type: 'minute',
+    title: 'The cockroaches were thread',
+    pct: -2,
+    note: 'Has reported cockroaches several times. On inspection he calls anything small and dark on the floor a cockroach: balls of thread, little scraps. It has caused unnecessary distress.',
+    verdict: 'Several sightings, zero cockroaches: on inspection, thread and floor scraps. Crying cockroach in a shared apartment costs credibility and the household its calm. Minute, but the desk now has a pattern.',
+    by: 'Bryon',
+    ref: '-P47AzPws6hUouUxqgOn'
+  },
+  {
+    day: '2026-10-16',
+    name: 'Bryon',
+    type: 'minute',
+    title: 'The doubt had grounds',
+    pct: 1,
+    note: 'Filed the rebuttal: the cockroaches were thread.',
+    verdict: 'The doubt the desk docked a point for turns out to have had grounds. The point comes back. The committee notes the household now holds three filings about cockroaches and no cockroach.',
+    by: 'Bryon',
+    ref: '-P47AzPws6hUouUxqgOn'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
