@@ -373,6 +373,19 @@ export const LEDGER = [
     ref: '-P47AzPws6hUouUxqgOn'
   },
 
+  // ---- Ruled October 17, 2026: Saturday ----
+  {
+    day: '2026-10-17',
+    name: 'Noah',
+    type: 'romance',
+    title: 'Avery replied',
+    partner: 'Avery Porter',
+    pct: 6,
+    note: 'She hearted the Montana text, thanked him again for a fun afternoon, and apologised for not texting sooner. He answered with a line about swimming and snowboarding, the BYU game, and a second risky text: a hypothetical extra ticket to the Baylor game in a couple of weeks, and something sooner if she has the emotional availability. That one is pending.',
+    verdict: 'The Friday-night silence the desk refused to price as a ghosting was not one. A heart on the risky text, a thank-you and an apology for the slow reply: the markdown on Thursday\'s close is reversed, with a little on top for the heart. A second risky text is now out, a Baylor ticket held hypothetically. The desk does not price a text until it is answered.',
+    by: 'Noah'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
   { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }
