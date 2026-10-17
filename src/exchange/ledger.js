@@ -289,6 +289,30 @@ export const LEDGER = [
     by: 'Noah'
   },
 
+  // ---- Ruled October 17, 2026: Friday's reports ----
+  {
+    day: '2026-10-16',
+    name: 'Noah',
+    type: 'date',
+    partner: 'Avery Porter',
+    pct: 9,
+    note: 'Built her an app to confirm the date. Flowers. Picked her up at 6 on the dot. An hour at Momentum climbing, two hours of conversation at Aubergine Kitchen, every door held. Did not walk her to her door at the drop-off; sent a Montana text into the silence; unread three hours later. Self-assessed as getting ghosted.',
+    verdict: 'A first date with a new name, executed to a high standard: an app, flowers, punctual, climbing, two hours of talk, doors. On its own a top-tier print. The desk marks it down for the close: no walk to the door, then a risky text into a quiet phone. Three hours unread on a Friday night is not a ghosting; it is a Friday night. A reply is a filing. A week of silence is a different filing.',
+    by: 'Noah',
+    ref: '-P4723HYuCnXHpmyoAAc'
+  },
+  {
+    day: '2026-10-16',
+    name: 'James',
+    type: 'other',
+    title: 'Downloaded Cyberpunk 2077, unplayed',
+    pct: -1,
+    note: 'Downloaded Cyberpunk 2077 on an Xbox One S, digital only. Has not played it.',
+    verdict: 'A download is not an event, and an unplayed one is barely a download. Immaterial; the desk docks a point for the Xbox One S and awaits the first hour of play.',
+    by: 'James',
+    ref: '-P472PEnl0lk_-nqqugh'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
   { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }

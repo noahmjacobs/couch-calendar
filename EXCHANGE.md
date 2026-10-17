@@ -59,6 +59,12 @@ of the same app, for roommates only.
    roommate's history and how expected it was, writes the filings with its
    reasoning, and pushes. The deploy moves the board, and each filing's
    `ref` marks its submission as filed.
+   *How the committee reads the database:* the chat sandbox cannot reach
+   Firebase, so the Railway project carries a tiny function named
+   `exchange-reader` that prints everything under `exchange` to its deploy
+   log and exits. Redeploying it (Railway MCP `redeploy`, then `get-logs`)
+   gives a fresh read; it costs nothing between runs. The repository's
+   "Read the exchange" workflow prints the same thing on every push to main.
 
 ## The Brindex
 
