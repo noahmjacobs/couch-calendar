@@ -312,6 +312,17 @@ export const LEDGER = [
     by: 'James',
     ref: '-P472PEnl0lk_-nqqugh'
   },
+  {
+    day: '2026-10-16',
+    name: 'Bryon',
+    type: 'date',
+    partner: 'Lauryn Grant',
+    pct: 13,
+    note: 'Painted pottery for about two hours with good conversation; she asked about his family first; a funny stretch on conspiracy theories, which she loves. Ice cream after, and when he checked the time she said “we have an hour, we’re good.” A hug at the end, then a text from her: thank you, and she is excited to see how the ceramics come out. He has to go back for them once they are fired.',
+    verdict: 'The booking the desk priced as guidance on Thursday delivered in full. Two hours of pottery, extended on her initiative, a hug, and a thank-you text from her side. The ceramics have to be collected once fired, which is a second meeting on the books in all but name. The cleanest first-date print on the record; BRYN leaves the bottom of the board behind for good.',
+    by: 'Bryon',
+    ref: '-P472aHX43tsnb4QXbny'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
