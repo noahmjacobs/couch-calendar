@@ -101,7 +101,12 @@ is a jump; a girlfriend after five dates with the same person is largely
 priced in. Getting stood up once stings; getting stood up for the fourth
 time is mostly already in the price. A good deed at church counts. A game
 night everyone went to is a little for everyone. The categories (date,
-romance, life, social, apartment, other) are flavour and supply the emoji.
+romance, life, social, apartment, minute, other) are flavour and supply the
+emoji. **Minute** (👀) is for the small stuff and the rumours: things the
+household wants on the record without making a big deal of them, so the
+committee keeps those to a point or two, if it moves them at all. The
+committee may also file a report under a different category than it was
+reported in; once ruled, the report shows the committee's category.
 
 The only automatic movement: a listing that goes a **full week** without a
 filing steps down 2% at the close of that seventh day, again a week later,

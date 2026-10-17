@@ -110,6 +110,8 @@ export const CATEGORIES = [
   { id: 'life', emoji: '🏆', label: 'Life' },
   { id: 'social', emoji: '🎲', label: 'Social' },
   { id: 'apartment', emoji: '🧽', label: 'Apartment' },
+  // the small stuff and the rumours: things that should barely move a listing
+  { id: 'minute', emoji: '👀', label: 'Minute' },
   { id: 'other', emoji: '📝', label: 'Other' }
 ]
 export const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))

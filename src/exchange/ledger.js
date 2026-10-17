@@ -13,8 +13,11 @@
 //     day: '2026-10-14',        // the trading day it happened (local date)
 //     name: 'Jonas',            // Noah | Bryon | Jonas | Andrew | James
 //     type: 'date',             // a category id from CATEGORIES in market.js:
-//                               // date, romance, life, social, apartment, other
-//                               // (flavour only; supplies the emoji)
+//                               // date, romance, life, social, apartment,
+//                               // minute, other (flavour only; supplies the
+//                               // emoji. The committee may file a report under
+//                               // a different category than it was reported in;
+//                               // "minute" is for small stuff and rumours)
 //     pct: 8,                   // the committee's ruling, in percent
 //     title: 'Date with Maya',  // what it was, in a few words
 //     partner: 'Maya',          // dates only: who with
@@ -322,6 +325,17 @@ export const LEDGER = [
     verdict: 'The booking the desk priced as guidance on Thursday delivered in full. Two hours of pottery, extended on her initiative, a hug, and a thank-you text from her side. The ceramics have to be collected once fired, which is a second meeting on the books in all but name. The cleanest first-date print on the record; BRYN leaves the bottom of the board behind for good.',
     by: 'Bryon',
     ref: '-P472aHX43tsnb4QXbny'
+  },
+  {
+    day: '2026-10-16',
+    name: 'Bryon',
+    type: 'minute',
+    title: 'Doubted the cockroach sightings',
+    pct: -1,
+    note: 'Accused Noah of not seeing cockroaches when Noah says he sees them. Reported as Apartment; filed by the committee as Minute.',
+    verdict: 'A dispute over cockroach sightings is a governance matter, not a pest matter. Minute: the desk notes the friction and the possibility of cockroaches, and moves on.',
+    by: 'Noah',
+    ref: '-P479Px7GwOLbGbWy5hm'
   },
 
   // ---- Withdrawals ----
