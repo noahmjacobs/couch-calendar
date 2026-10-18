@@ -386,6 +386,98 @@ export const LEDGER = [
     by: 'Noah'
   },
 
+  // ---- Ruled October 18, 2026: Saturday's reports ----
+  {
+    day: '2026-10-17',
+    name: 'Bryon',
+    type: 'apartment',
+    title: 'Did everyone\'s dishes',
+    pct: 4,
+    note: 'Did the dishes the whole apartment left, everyone\'s but Jonas, who is out of town. Did not seek a thank-you.',
+    verdict: 'The whole household\'s sink, cleared without asking for credit. The exchange gives the credit anyway. A reliable dividend, paid in full.',
+    by: 'Noah',
+    ref: '-P4AuerDzXYIyExGnK29'
+  },
+  {
+    day: '2026-10-17',
+    name: 'Noah',
+    type: 'apartment',
+    title: 'Vacuumed, wiped, dishwasher started, press release issued',
+    pct: 2,
+    note: 'Vacuumed the living room, wiped all the counters and started the dishwasher. Not humble about it; will make sure everyone knows.',
+    verdict: 'The work is real: floor, counters, dishwasher. The press release is also real. Three for the work, one off for the press release.',
+    by: 'Noah',
+    ref: '-P4AunSTF2WTS6xoqE7V'
+  },
+  {
+    day: '2026-10-17',
+    name: 'Andrew',
+    type: 'social',
+    title: 'Reserved the clubhouse for Wednesday',
+    pct: 3,
+    note: 'Reserved the clubhouse for a potentially epic event on Wednesday and confirmed it with the landlord, JT. Details to come.',
+    verdict: 'Guidance, not earnings: a booking with a landlord\'s confirmation on it. The desk notes ANDW taking initiative after a quiet week. Wednesday prints Wednesday.',
+    by: 'Noah',
+    ref: '-P4Av1iISPXI0ah9DGC5'
+  },
+  {
+    day: '2026-10-17',
+    name: 'James',
+    type: 'minute',
+    title: 'Played Cyberpunk for thirty minutes',
+    pct: 1,
+    note: 'Played Cyberpunk 2077 on the Xbox One S for about thirty minutes. It was just OK.',
+    verdict: 'The desk asked for an hour and got thirty minutes and a shrug. The point returns on a technicality. The desk does not expect to hear about Cyberpunk again.',
+    by: 'James',
+    ref: '-P4AE5ss4REl0xoonZYy'
+  },
+  {
+    day: '2026-10-17',
+    name: 'Bryon',
+    type: 'life',
+    title: 'BYU over Notre Dame, in person, with family',
+    pct: 4,
+    note: 'Went to the BYU game with his family. BYU, ranked eighth, beat second-ranked Notre Dame. Graduated from BYU six months ago; saw lots of people he knew and felt popular.',
+    verdict: 'A top-ten upset in person, with family, in a stadium full of people who knew him. The desk cannot pay for BYU\'s defense, but it pays for being seen.',
+    by: 'Bryon',
+    ref: '-P4CjCTxQ1M6YQJEHzt-'
+  },
+  {
+    day: '2026-10-17',
+    name: 'James',
+    type: 'date',
+    partner: 'Sophie Middleton',
+    pct: 8,
+    note: 'Drove up to Sundance for the haunted ski lift, very fun and very cold, coat too thin. Maverik for hot chocolate, then her place for the 2003 Haunted Mansion, and a very wholesome make-out. Date four or five; he has stopped counting.',
+    verdict: 'The fourth or fifth with the same name, and he has stopped counting, which is itself the signal. A haunted lift, a thin coat, hot chocolate, a movie at her place and a wholesome make-out: the story the market already owns moved a chapter. Priced as a known position printing a new high, not a new position.',
+    by: 'James',
+    ref: '-P4ChNsdAaynf3nyXlXn'
+  },
+  {
+    day: '2026-10-17',
+    name: 'Noah',
+    type: 'romance',
+    title: 'Over-traded the Avery position',
+    partner: 'Avery Porter',
+    pct: -4,
+    note: 'Texted Avery during the BYU game asking if she wanted In-N-Out after. Left on read. Giving up; if she wants anything moving forward, the ball is in her court.',
+    verdict: 'A heart and an apology at noon, then two more asks before midnight, the Baylor ticket and In-N-Out, both on read. The desk marks down for the pace, not the silence: a Saturday-night read receipt during a top-ten upset is not a verdict. "Ball in her court" is the right call. Filed as a hold, not a close.',
+    by: 'Noah',
+    ref: '-P4CiwGm8PhFlspnzU-a'
+  },
+  {
+    day: '2026-10-17',
+    name: 'Noah',
+    type: 'romance',
+    title: 'Texted Elle, a week after the friend zone',
+    partner: 'Elle',
+    pct: -3,
+    note: 'Texted Elle, whom he took on a date last week and who friend-zoned him right after. Said he respected her boundaries, and offered climbing this week if she wanted. Waiting; probably not expecting a reply.',
+    verdict: 'The desk learns, in passing, of a date last week and a friend-zoning right after it, neither of which was reported. The undisclosed close costs more than tonight\'s text. Respecting the boundary in writing is noted; sending it the same night the Avery position went quiet is noted too.',
+    by: 'Noah',
+    ref: '-P4CjACeBmT7ZlHpDPzX'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
   { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }
