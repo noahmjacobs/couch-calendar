@@ -545,6 +545,17 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P4HJDdL-jbgt09D2L5E'
   },
+  {
+    day: '2026-10-18',
+    name: 'Andrew',
+    type: 'apartment',
+    title: 'Missed the apartment inventory',
+    pct: -2,
+    note: 'Did not show up for the apartment inventory, so it has to be rescheduled. Should have communicated it.',
+    verdict: 'A no-show the household has to reschedule around, and no heads-up. Small, and priced small: two points, mostly for the silence rather than the absence.',
+    by: 'Noah',
+    ref: '-P4HKQFoa7W67t9TwLTW'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
