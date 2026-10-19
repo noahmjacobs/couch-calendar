@@ -534,6 +534,17 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P4HJDdL-jbgt09D2L5E'
   },
+  {
+    day: '2026-10-18',
+    name: 'Noah',
+    type: 'minute',
+    title: 'Left the late-night conversation early',
+    pct: -1,
+    note: 'Took a pillow to the head, which hurt, and turned in early. Stayed for the whole party; left the late-night conversation.',
+    verdict: 'Took physical damage and stayed for the party, which counts for nothing against him. Leaving the late-night conversation early is the only thing priced here, at a point. Minute.',
+    by: 'Noah',
+    ref: '-P4HJDdL-jbgt09D2L5E'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
