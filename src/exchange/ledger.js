@@ -523,6 +523,28 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P4HHoXp-ti308TmxlGh'
   },
+  {
+    day: '2026-10-18',
+    name: 'Jonas',
+    type: 'minute',
+    title: 'Pillow to the head',
+    pct: -1,
+    note: 'Hit Noah in the head with a pillow. It hurt. Noah was disappointed and went to bed early.',
+    verdict: 'A pillow to the head on game night. Minute: a point off for the strike, none for the aim.',
+    by: 'Noah',
+    ref: '-P4HJDdL-jbgt09D2L5E'
+  },
+  {
+    day: '2026-10-18',
+    name: 'Noah',
+    type: 'minute',
+    title: 'Went to bed early over a pillow',
+    pct: -1,
+    note: 'Took a pillow to the head, was disappointed, went to bed early, and filed it.',
+    verdict: 'The reporter is in the story. Early to bed over a pillow, and the second grievance filing of the weekend. Minute.',
+    by: 'Noah',
+    ref: '-P4HJDdL-jbgt09D2L5E'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
