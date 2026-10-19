@@ -556,6 +556,17 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P4HKQFoa7W67t9TwLTW'
   },
+  {
+    day: '2026-10-18',
+    name: 'James',
+    type: 'minute',
+    title: 'Melatonin, delivered',
+    pct: 1,
+    note: 'Dropped melatonin off at Noah\'s room the moment he asked for it. Much appreciated; a great guy.',
+    verdict: 'Asked, and delivered to the door in minutes. Minute, but the kind the desk likes: a point for the house pharmacist.',
+    by: 'Noah',
+    ref: '-P4HMsbGi7LjBKp4QzqN'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
