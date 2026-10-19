@@ -478,6 +478,52 @@ export const LEDGER = [
     ref: '-P4CjACeBmT7ZlHpDPzX'
   },
 
+  // ---- Ruled October 19, 2026: Sunday game night ----
+  {
+    day: '2026-10-18',
+    name: 'Bryon',
+    type: 'social',
+    title: 'Game night: pumpkin cookies',
+    pct: 4,
+    note: 'Sunday night game night at the house. Bryon made pumpkin cookies that everyone appreciated.',
+    verdict: 'Attended, and arrived with pumpkin cookies the whole room appreciated. The host\'s contribution of the night. BRYN closes a week with a date, a cleared sink, an upset win and a bake.',
+    by: 'Noah',
+    ref: '-P4HHoXp-ti308TmxlGh'
+  },
+  {
+    day: '2026-10-18',
+    name: 'Jonas',
+    type: 'social',
+    title: 'Game night: called time at 9:30',
+    pct: 4,
+    note: 'Sunday night game night at the house. Jonas did a good job of making everyone leave at 9:30 PM.',
+    verdict: 'Back from out of town and straight into a role: the man who ends the party on time. The desk prizes discipline on a Sunday. First filing on JNAS in a week, and the market is glad to have him back on the floor.',
+    by: 'Noah',
+    ref: '-P4HHoXp-ti308TmxlGh'
+  },
+  {
+    day: '2026-10-18',
+    name: 'James',
+    type: 'social',
+    title: 'Game night: left at the half',
+    pct: 1,
+    note: 'Sunday night game night at the house. James left halfway through, which was sad; for the time he was there it was good.',
+    verdict: 'Good while present, gone at the half. Attendance credit, trimmed for the early exit. After the week JAMS has had, the market can afford to be patient.',
+    by: 'Noah',
+    ref: '-P4HHoXp-ti308TmxlGh'
+  },
+  {
+    day: '2026-10-18',
+    name: 'Noah',
+    type: 'social',
+    title: 'Game night: set up and played',
+    pct: 3,
+    note: 'Sunday night game night at the house. Noah contributed to the activity and cleaned to prepare for it.',
+    verdict: 'Cleaned the place before and played through. Set-up work is real work, and it was reported with less fanfare than Saturday\'s vacuuming. Three.',
+    by: 'Noah',
+    ref: '-P4HHoXp-ti308TmxlGh'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
   { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }
