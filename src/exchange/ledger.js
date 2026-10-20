@@ -632,23 +632,12 @@ export const LEDGER = [
   },
   {
     day: '2026-10-19',
-    name: 'Bryon',
-    type: 'life',
-    title: 'Came out to the apartment',
-    pct: 8,
-    note: 'Kissed a guy and came out as gay to the apartment. Everyone is very happy for him.',
-    verdict: 'A major life filing, shared with the household and met with support. The exchange prices the honesty and the trust it takes to say it out loud; it has no view on whom anyone kisses. Filed as reported, by the house rule.',
-    by: 'Jonas',
-    ref: '-P4MgiZfsjFU43cQcy_X'
-  },
-  {
-    day: '2026-10-19',
     name: 'Noah',
     type: 'date',
     partner: 'Kennedy',
     pct: 10,
     note: 'Flowers, Costa Vida, pumpkin painting, and he helped clean up after. She invited him on a second date; he had to decline Tuesday for ministering visits. She would still like another date.',
-    verdict: 'Flowers, dinner, pumpkins, and he stayed to clean up. Then the signal that matters: she asked for the second date. Declining Tuesday for a church commitment is a scheduling fact, not a markdown. The desk notes a Kennedy on JNAS\'s Wednesday calendar as well and declines to assume anything.',
+    verdict: 'Flowers, dinner, pumpkins, and he stayed to clean up. Then the signal that matters: she asked for the second date. Declining Tuesday for a church commitment is a scheduling fact, not a markdown. A different Kennedy from the one on JNAS\'s Wednesday calendar, the household confirms.',
     by: 'Noah',
     ref: '-P4Pxv8MyQ_sc5lEj0S1'
   },
@@ -675,8 +664,31 @@ export const LEDGER = [
     by: 'Noah',
     ref: '-P4Py0cvhPydjsyZuJkB'
   },
+  {
+    day: '2026-10-20',
+    name: 'Jonas',
+    type: 'other',
+    title: 'Filed a false report about Bryon',
+    pct: -8,
+    note: 'Reported that Bryon kissed a man and came out as gay to the apartment. Bryon says none of it happened. Retracted under the house rule: the false filing comes off the ledger and the reporter takes one of his own.',
+    verdict: 'The eight points Jonas invented for Bryon come off Bryon exactly, and go on Jonas as a loss. A fabricated life filing about a roommate is the one thing the committee has no humour about. The house rule, applied for the first time.',
+    by: 'Bryon',
+    ref: '-P4QXzAI0qL6R7RG1VxP'
+  },
+  {
+    day: '2026-10-20',
+    name: 'Bryon',
+    type: 'other',
+    title: 'Forfeited eight points rather than keep a lie',
+    pct: 2,
+    note: 'Would rather forfeit the points gain than live in lies.',
+    verdict: 'Gave back eight points he did not earn, unprompted. The desk pays for that kind of honesty, and notes who filed the correction.',
+    by: 'Bryon',
+    ref: '-P4QXzAI0qL6R7RG1VxP'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
-  { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }
+  { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." },
+  { withdrawn: true, ref: '-P4MgiZfsjFU43cQcy_X', note: 'False report by Jonas about Bryon, October 19. Retracted October 20 under the house rule.' }
 ]
