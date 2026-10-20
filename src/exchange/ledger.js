@@ -568,6 +568,64 @@ export const LEDGER = [
     ref: '-P4HMsbGi7LjBKp4QzqN'
   },
 
+  // ---- Ruled October 20, 2026: Monday's reports ----
+  {
+    day: '2026-10-19',
+    name: 'Jonas',
+    type: 'romance',
+    title: 'Booked a date with Kennedy for Wednesday',
+    partner: 'Kennedy',
+    pct: 4,
+    note: 'Scheduled a date with Kennedy on Wednesday: a corn maze and a snack.',
+    verdict: 'Guidance, not earnings: a named booking with a plan, and the first romance filing on JNAS since Annie in September. A corn maze is a strong format. Wednesday prints Wednesday.',
+    by: 'Jonas',
+    ref: '-P4Mg5yiI5IEbG5j43YR'
+  },
+  {
+    day: '2026-10-19',
+    name: 'Jonas',
+    type: 'romance',
+    title: 'Got the number of his boss\'s daughter',
+    pct: 3,
+    note: 'Got the number of his boss\'s daughter. Will set up a date soon.',
+    verdict: 'A number with a plan behind it. The desk notes the career exposure on this position and prices the number, not the risk. Two romance filings in one evening from the quietest listing on the board.',
+    by: 'Jonas',
+    ref: '-P4MgHiM_vrHJc1fXGtL'
+  },
+  {
+    day: '2026-10-19',
+    name: 'Noah',
+    type: 'apartment',
+    title: 'Cooked something that smells like rotting feet',
+    pct: -2,
+    note: 'Made super stinky food. The whole house now smells like rotting feet.',
+    verdict: 'The house smells like rotting feet and the chef is known. Reported as Other, filed as Apartment, because it is the apartment that suffers. Two points.',
+    by: 'James',
+    ref: '-P4MgBRhsevYmZYDg05T'
+  },
+  {
+    day: '2026-10-19',
+    name: 'Noah',
+    type: 'minute',
+    title: 'Ex-fiancée pictures, no context',
+    pct: -2,
+    note: 'Showed the apartment pictures of his ex-fiancée with no context.',
+    verdict: 'Pictures of the ex-fiancée, no context offered, none requested. The market does not know what to do with this, which is rather the point. Filed as Minute, two points, and the desk would like the context.',
+    by: 'Jonas',
+    ref: '-P4MgQWFY5urwT2XmPSa'
+  },
+  {
+    day: '2026-10-20',
+    name: 'Noah',
+    type: 'life',
+    title: 'First job interview, three to go',
+    pct: 4,
+    note: 'Did a job interview. Self-graded fifty percent well, fifty percent choked. The interviewer messaged afterwards to say it was awesome. Three more interviews to come. Lobbied the committee for a double if he gets it.',
+    verdict: 'First of four rounds, self-graded a coin flip, graded awesome by the person who matters. The desk prices the round, not the job. The request for a double is noted, and will be revisited when there is an offer to price.',
+    by: 'Noah',
+    ref: '-P4PvdqqADlPs14pF0Y1'
+  },
+
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
   { withdrawn: true, brindex: '-P3yYyHK_QXevuzNzADv', note: "Noah's test of the Brindex form, October 15. Withdrawn at his request." }
