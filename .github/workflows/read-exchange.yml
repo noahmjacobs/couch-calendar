@@ -15,4 +15,13 @@ jobs:
       - name: Event reports and Brindex reports
         run: |
           curl -sSf 'https://couch-reservation-default-rtdb.firebaseio.com/exchange.json' \
-            | python3 -c 'import json,sys; d=json.load(sys.stdin) or {}; print(json.dumps(d, indent=2, sort_keys=True, ensure_ascii=False))'
+            | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin) or {}
+          # one line per record, oldest first, so the newest reports are at the end
+          for kind in sorted(d):
+              items = d[kind] or {}
+              for id in sorted(items, key=lambda k: (items[k] or {}).get("at", "")):
+                  print(kind, id, json.dumps(items[id], ensure_ascii=False))
+          print("DONE", sum(len(v or {}) for v in d.values()), "records")
+          '
