@@ -52,6 +52,11 @@ of the same app, for roommates only.
    one-line entry in the ledger (`{ withdrawn: true, ref, note }`): the
    report disappears from the app without a ruling. Nobody approves anything
    in the app.
+   **Reports are filed as reported.** The committee does not hold a report
+   for confirmation. If one later turns out to be false, it is retracted:
+   the filing comes off the ledger, which puts that listing's price back
+   exactly, and the person who filed the false report takes a filing of
+   their own for it.
 3. **At the close, Noah comes to the chat** and says "update today", with
    any corrections: "everyone was at that one", "add that it was her
    birthday", "skip the second one". The committee (Claude) reads the

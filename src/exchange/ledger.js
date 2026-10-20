@@ -34,6 +34,11 @@
 // whom the committee may rule on as well. Filings that share a `ref` show
 // together on that report in the app.
 //
+// Reports are filed as reported. The committee does not wait for
+// confirmation. A report later shown to be false is retracted: its filing
+// comes off the ledger, which puts the price back exactly, and the false
+// reporter takes a filing of their own for it.
+//
 // A withdrawal removes a report from the app without ruling on it:
 //   { withdrawn: true, ref: '-OabcXYZ', note: 'why' }
 // and one with `brindex` instead of `ref` removes a Brindex report, so it no
@@ -624,6 +629,17 @@ export const LEDGER = [
     verdict: 'First of four rounds, self-graded a coin flip, graded awesome by the person who matters. The desk prices the round, not the job. The request for a double is noted, and will be revisited when there is an offer to price.',
     by: 'Noah',
     ref: '-P4PvdqqADlPs14pF0Y1'
+  },
+  {
+    day: '2026-10-19',
+    name: 'Bryon',
+    type: 'life',
+    title: 'Came out to the apartment',
+    pct: 8,
+    note: 'Kissed a guy and came out as gay to the apartment. Everyone is very happy for him.',
+    verdict: 'A major life filing, shared with the household and met with support. The exchange prices the honesty and the trust it takes to say it out loud; it has no view on whom anyone kisses. Filed as reported, by the house rule.',
+    by: 'Jonas',
+    ref: '-P4MgiZfsjFU43cQcy_X'
   },
 
   // ---- Withdrawals ----
