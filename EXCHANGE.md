@@ -152,10 +152,17 @@ every load, so a backdated filing lands exactly where it belongs in the chart.
 
 ## Hosting on Railway
 
-One Railway service, deploying from `main`. Railway builds with
-`npm run build` and starts with `npm start`, which runs `server.js`: a small
-static server that serves `dist/` and sends the old `/exchange/` address to
-the root.
+Two Railway services in the Couch-Calendar project. `couch-calendar` is the
+app, deploying from `main`: Railway builds with `npm run build` and starts
+with `npm start`, which runs `server.js`, a small static server that serves
+`dist/` and sends the old `/exchange/` address to the root. `exchange-reader`
+is the committee's one-file function described under the daily routine; it
+runs once per deploy and exits, and costs nothing between runs.
+
+A push made while Railway has builds paused (they do pause them during
+incidents) is dropped, not queued: once builds resume, push again or deploy
+the latest commit from the dashboard. A `redeploy` only rebuilds the commit
+of the last deployment.
 
 ## Firebase
 
