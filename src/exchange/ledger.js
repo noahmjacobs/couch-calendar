@@ -641,6 +641,40 @@ export const LEDGER = [
     by: 'Jonas',
     ref: '-P4MgiZfsjFU43cQcy_X'
   },
+  {
+    day: '2026-10-19',
+    name: 'Noah',
+    type: 'date',
+    partner: 'Kennedy',
+    pct: 10,
+    note: 'Flowers, Costa Vida, pumpkin painting, and he helped clean up after. She invited him on a second date; he had to decline Tuesday for ministering visits. She would still like another date.',
+    verdict: 'Flowers, dinner, pumpkins, and he stayed to clean up. Then the signal that matters: she asked for the second date. Declining Tuesday for a church commitment is a scheduling fact, not a markdown. The desk notes a Kennedy on JNAS\'s Wednesday calendar as well and declines to assume anything.',
+    by: 'Noah',
+    ref: '-P4Pxv8MyQ_sc5lEj0S1'
+  },
+  {
+    day: '2026-10-20',
+    name: 'Bryon',
+    type: 'apartment',
+    title: 'Left the kitchen destroyed after the cookies',
+    pct: -3,
+    note: 'Did not clean the kitchen after making the cookies, and did not assign anyone to. It is Tuesday and the kitchen is destroyed. Noise complaints or a cockroach infestation could follow.',
+    verdict: 'The cookies earned four on Sunday; the kitchen they came out of has now stood destroyed into Tuesday. Three back. The desk notes, with no comment, which roommate raised the cockroach risk.',
+    by: 'Noah',
+    ref: '-P4PxfUk7O4MWXMXa3XU'
+  },
+  {
+    day: '2026-10-20',
+    name: 'Noah',
+    type: 'minute',
+    title: 'Leaving Avery on read, as a power move',
+    partner: 'Avery Porter',
+    pct: -1,
+    note: 'Leaving Avery on read to raise his own value. Could be a power move.',
+    verdict: 'A power move is something the other party notices. Minute: a point for filing a text he did not send.',
+    by: 'Noah',
+    ref: '-P4Py0cvhPydjsyZuJkB'
+  },
 
   // ---- Withdrawals ----
   { withdrawn: true, ref: '-P3y68vtOr_DY8v5RhNl', note: 'Fake report about Noah, October 14. Withdrawn by the committee.' },
