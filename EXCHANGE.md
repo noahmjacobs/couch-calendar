@@ -64,9 +64,11 @@ of the same app, for roommates only.
    `exchange-reader` that prints everything under `exchange` to its deploy
    log and exits. A fresh deploy of it (update its source, even just the run
    stamp in the comment, then `get-logs`) gives a reliable read; a plain
-   `redeploy` sometimes starts without streaming its output. It costs
-   nothing between runs. The repository's
-   "Read the exchange" workflow prints the same thing on every push to main.
+   `redeploy` sometimes starts without streaming its output, and Railway
+   occasionally pauses deploys altogether. It costs nothing between runs.
+   The fallback is the repository's "Read the exchange" workflow, which
+   prints the same thing on every push to main; its log is readable through
+   the GitHub connection.
 
 ## The Brindex
 
